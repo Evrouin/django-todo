@@ -1,0 +1,7 @@
+-r base.txt
+
+# Monitoring (optional - add when needed)
+# sentry-sdk==1.40.0
+
+# Performance
+# django-redis==5.4.0

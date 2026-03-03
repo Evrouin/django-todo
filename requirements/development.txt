@@ -1,0 +1,22 @@
+-r base.txt
+
+# Testing
+pytest==8.0.0
+pytest-django==4.8.0
+pytest-cov==4.1.0
+factory-boy==3.3.0
+
+# Code quality
+flake8==6.1.0
+flake8-bugbear==24.2.6
+flake8-comprehensions==3.14.0
+flake8-simplify==0.21.0
+ruff==0.2.1
+black==24.2.0
+mypy==1.8.0
+django-stubs==4.2.7
+djangorestframework-stubs==3.14.5
+
+# Debugging
+django-debug-toolbar==4.3.0
+ipython==8.21.0
