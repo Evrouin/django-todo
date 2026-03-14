@@ -17,6 +17,7 @@ urlpatterns = [
     # Authentication
     path("register/", RegisterView.as_view(), name="register"),
     path("login/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("login/google/", google_login, name="google_login"),
     path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     # Email verification
     path("verify-email/<str:token>/", verify_email, name="verify_email"),

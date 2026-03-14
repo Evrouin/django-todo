@@ -244,3 +244,56 @@ def delete_account(request):
         }
     },
 )
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def google_login(request):
+    """Authenticate with Google OAuth."""
+    token = request.data.get("token")
+    if not token:
+        return Response({"error": "Token is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        # Verify Google token
+        client_id = config("GOOGLE_CLIENT_ID")
+        idinfo = id_token.verify_oauth2_token(token, requests.Request(), client_id)
+
+        # Get user info from Google
+        email = idinfo.get("email")
+        if not email:
+            return Response(
+                {"error": "Email not provided by Google"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get or create user
+        User = get_user_model()
+        user, created = User.objects.get_or_create(
+            email=email,
+            defaults={
+                "first_name": idinfo.get("given_name", ""),
+                "last_name": idinfo.get("family_name", ""),
+                "is_verified": True,  # Google emails are verified
+            },
+        )
+
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+
+        return Response(
+            {
+                "message": "Login successful" if not created else "Account created",
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                },
+                "tokens": {
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token),  # type: ignore[attr-defined]
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    except ValueError as e:
+        return Response({"error": f"Invalid token: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
