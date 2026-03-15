@@ -1,18 +1,27 @@
-# Django Authentication API
+# Minimalist Todo API
 
-Production-ready Django REST API with JWT authentication, email verification, password reset, rate limiting, and comprehensive API documentation.
+Production-ready Django REST API with JWT authentication, Google OAuth, email verification, password reset, todo management, rate limiting, and comprehensive API documentation.
+
+## Live Demo
+
+- **API**: https://minimalist-todo-api-luzd.onrender.com
+- **Swagger UI**: https://minimalist-todo-api-luzd.onrender.com/api/docs/
+- **ReDoc**: https://minimalist-todo-api-luzd.onrender.com/api/redoc/
 
 ## Features
 
 - **JWT Authentication** - Token-based auth with refresh tokens and blacklisting
+- **Google OAuth** - Sign in with Google
 - **Email Verification** - Secure email verification on registration
 - **Password Reset** - Token-based password reset with 24-hour expiry
-- **Rate Limiting** - IP-based rate limiting on all auth endpoints
+- **Todo Management** - Full CRUD with soft delete support
+- **Rate Limiting** - IP-based rate limiting on auth endpoints
 - **API Documentation** - Auto-generated Swagger UI and ReDoc
 - **Custom User Model** - Email-based authentication with additional fields
-- **Unit Tests** - 15 comprehensive tests covering all endpoints
+- **Unit Tests** - 15 comprehensive tests covering auth endpoints
 - **Code Quality** - Black, Flake8, Ruff, MyPy configured
-- **Docker Ready** - Multi-stage Dockerfile with docker-compose
+- **Docker Ready** - Dockerfile with docker-compose
+- **Render Deployment** - Blueprint (`render.yaml`) for one-click deploy
 - **Modular Settings** - Separate base, development, and production configs
 
 ## Tech Stack
@@ -21,9 +30,11 @@ Production-ready Django REST API with JWT authentication, email verification, pa
 - **Django REST Framework 3.14.0** - API framework
 - **PostgreSQL** - Primary database
 - **djangorestframework-simplejwt 5.3.1** - JWT authentication
+- **google-auth 2.27.0** - Google OAuth
 - **drf-spectacular 0.27.1** - OpenAPI 3.0 schema generation
 - **django-ratelimit** - Rate limiting
 - **Docker & Docker Compose** - Containerization
+- **Render** - Production hosting
 
 ## Quick Start
 
@@ -35,53 +46,26 @@ Production-ready Django REST API with JWT authentication, email verification, pa
 ### Docker Setup (Recommended)
 
 ```bash
-# Clone and navigate to project
 cd django-auth
-
-# Copy environment file
 cp .env.example .env
-
-# Build and start services
 docker-compose up --build -d
-
-# Run migrations
 docker-compose exec web python manage.py migrate
-
-# Create superuser
 docker-compose exec web python manage.py createsuperuser
-
-# Access the API
 open http://localhost:8000/api/docs/
 ```
 
 ### Local Setup
 
 ```bash
-# Install Python 3.12
 pyenv install 3.12.0
 pyenv local 3.12.0
-
-# Create virtual environment
 python -m venv venv
 source venv/bin/activate
-
-# Install dependencies
 pip install -r requirements/development.txt
-
-# Update .env to use localhost
 cp .env.example .env
-# Change DATABASE_URL to: postgresql://postgres:postgres@localhost:5432/django_auth_db
-
-# Create database
 createdb django_auth_db
-
-# Run migrations
 python manage.py migrate
-
-# Create superuser
 python manage.py createsuperuser
-
-# Run server
 python manage.py runserver
 ```
 
@@ -91,6 +75,7 @@ python manage.py runserver
 
 - `POST /api/auth/register/` - Register new user (5 requests/hour)
 - `POST /api/auth/login/` - Login and get JWT tokens (10 requests/hour)
+- `POST /api/auth/login/google/` - Google OAuth login
 - `POST /api/auth/token/refresh/` - Refresh access token (20 requests/hour)
 - `POST /api/auth/verify-email/<token>/` - Verify email address
 - `POST /api/auth/password-reset/` - Request password reset (3 requests/hour)
@@ -103,6 +88,15 @@ python manage.py runserver
 - `PUT /api/auth/change-password/` - Change password (5 requests/hour)
 - `DELETE /api/auth/delete-account/` - Delete account (3 requests/hour)
 
+### Todos (Authenticated)
+
+- `GET /api/todos/` - List todos (pass `?include_deleted=true` for soft-deleted)
+- `POST /api/todos/` - Create a todo
+- `GET /api/todos/:id/` - Get single todo
+- `PUT /api/todos/:id/` - Full update
+- `PATCH /api/todos/:id/` - Partial update (e.g., toggle completed)
+- `DELETE /api/todos/:id/` - Soft delete (first call) / permanent delete (second call)
+
 ### Documentation
 
 - `GET /api/docs/` - Swagger UI
@@ -114,18 +108,24 @@ python manage.py runserver
 ```
 django-auth/
 ├── apps/
-│   └── users/              # User management app
-│       ├── models.py       # Custom User & PasswordResetToken models
-│       ├── serializers.py  # DRF serializers
-│       ├── views.py        # API views with rate limiting
+│   ├── users/              # User management & authentication
+│   │   ├── models.py       # Custom User & PasswordResetToken models
+│   │   ├── serializers.py  # DRF serializers
+│   │   ├── views.py        # API views with rate limiting
+│   │   ├── urls.py         # URL routing
+│   │   ├── admin.py        # Admin configuration
+│   │   └── tests.py        # Unit tests
+│   └── todos/              # Todo management
+│       ├── models.py       # Todo model
+│       ├── serializers.py  # Todo serializer
+│       ├── views.py        # CRUD views with ApiResponse wrapper
 │       ├── urls.py         # URL routing
-│       ├── admin.py        # Admin configuration
-│       └── tests.py        # Unit tests
+│       └── admin.py        # Admin configuration
 ├── config/
 │   ├── settings/
 │   │   ├── base.py         # Core settings
-│   │   ├── development.py  # Dev settings
-│   │   └── production.py   # Production settings
+│   │   ├── development.py  # Dev settings (CORS allow all)
+│   │   └── production.py   # Production settings (security hardened)
 │   ├── urls.py             # Main URL configuration
 │   ├── wsgi.py             # WSGI entry point
 │   └── asgi.py             # ASGI entry point
@@ -137,8 +137,9 @@ django-auth/
 │   ├── entrypoint.sh       # Docker entrypoint
 │   ├── format_code.sh      # Auto-format with black
 │   └── check_code.sh       # Run all linters
+├── render.yaml             # Render Blueprint (one-click deploy)
 ├── docker-compose.yml      # Docker services
-├── Dockerfile              # Multi-stage build
+├── Dockerfile              # Docker build
 ├── Makefile                # Common commands
 ├── .flake8                 # Flake8 configuration
 ├── pyproject.toml          # Black & Ruff configuration
@@ -151,186 +152,78 @@ django-auth/
 ### Docker Commands
 
 ```bash
-# Start services
-docker-compose up
-
-# Start in background
-docker-compose up -d
-
-# View logs
-docker-compose logs -f web
-
-# Stop services
-docker-compose down
-
-# Rebuild after changes
-docker-compose up --build
-
-# Run Django commands
-docker-compose exec web python manage.py <command>
-
-# Access container shell
-docker-compose exec web bash
-
-# Run tests
-docker-compose exec web pytest -v
-
-# Django shell
-docker-compose exec web python manage.py shell
+docker-compose up -d              # Start in background
+docker-compose logs -f web        # View logs
+docker-compose down               # Stop services
+docker-compose up --build         # Rebuild after changes
+docker-compose exec web bash      # Access container shell
+docker-compose exec web pytest -v # Run tests
 ```
 
 ### Code Quality
 
 ```bash
-# Format code
+make docker-lint                  # Run all checks
+
+# Or individually
 docker-compose exec web black apps/ config/
-
-# Check with Ruff
 docker-compose exec web ruff check apps/ config/
-
-# Check with Flake8
 docker-compose exec web flake8 apps/ config/
-
-# Type check with MyPy
 docker-compose exec web mypy apps/ config/
-
-# Run all checks
-make docker-lint
-
-# Or locally
-source venv/bin/activate
-./scripts/format_code.sh
-./scripts/check_code.sh
 ```
 
 ### Running Tests
 
 ```bash
-# Docker
 docker-compose exec web pytest -v
-
-# Local
-source venv/bin/activate
-pytest -v
-
-# With coverage
-pytest --cov=apps --cov-report=html
+pytest --cov=apps --cov-report=html  # With coverage (local)
 ```
 
-### Creating New Apps
+### Database Access
 
 ```bash
-# Docker
-docker-compose exec web python manage.py startapp appname
-mv appname apps/
-
-# Update apps/appname/apps.py
-# Change: name = 'apps.appname'
-
-# Add to INSTALLED_APPS in config/settings/base.py
-# 'apps.appname',
-
-# Restart
-docker-compose restart web
+# Via Docker
+docker-compose exec db psql -U postgres -d django_auth_db -c "\dt"
+docker-compose exec db psql -U postgres -d django_auth_db -c "SELECT * FROM todos;"
 ```
 
-## Environment Variables
+## Deployment (Render)
 
-Key variables in `.env`:
+### One-Click Deploy
 
-```bash
-# Django
-SECRET_KEY=your-secret-key-here
-DEBUG=True
-DJANGO_SETTINGS_MODULE=config.settings.development
-ALLOWED_HOSTS=localhost,127.0.0.1
+1. Push code to GitHub
+2. Go to Render Dashboard → New → Blueprint
+3. Connect your repo — Render detects `render.yaml`
+4. Fill in the prompted env vars:
+   - `ALLOWED_HOSTS` — your Render service URL (e.g., `minimalist-todo-api-luzd.onrender.com`)
+   - `CORS_ALLOWED_ORIGINS` — your frontend URL (e.g., `http://localhost:3000`)
+   - `FRONTEND_URL` — your frontend URL
+   - `GOOGLE_CLIENT_ID` — Google OAuth client ID
+   - `GOOGLE_CLIENT_SECRET` — Google OAuth client secret
+5. Deploy — migrations and static files are handled automatically
 
-# Database
-DATABASE_URL=postgresql://postgres:postgres@db:5432/django_auth_db
-POSTGRES_DB=django_auth_db
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_HOST=db
-POSTGRES_PORT=5432
+### Render Blueprint (`render.yaml`)
 
-# Email (for production)
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_USE_TLS=True
-EMAIL_HOST_USER=your-email@gmail.com
-EMAIL_HOST_PASSWORD=your-app-password
+The blueprint provisions:
+- **PostgreSQL database** (free tier, Singapore region)
+- **Web service** (Python runtime, gunicorn)
+- Auto-generated `SECRET_KEY`
+- Auto-linked `DATABASE_URL`
 
-# Rate Limiting
-RATELIMIT_ENABLE=True
+### Environment Variables
 
-# Security (production)
-SECURE_SSL_REDIRECT=True
-SESSION_COOKIE_SECURE=True
-CSRF_COOKIE_SECURE=True
-```
-
-## Testing the API
-
-Use the included test script:
-
-```bash
-chmod +x test_api.sh
-./test_api.sh
-```
-
-Or test manually with curl:
-
-```bash
-# Register
-curl -X POST http://localhost:8000/api/auth/register/ \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"testpass123","first_name":"Test","last_name":"User"}'
-
-# Login
-curl -X POST http://localhost:8000/api/auth/login/ \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"testpass123"}'
-
-# Get profile (use access token from login)
-curl -X GET http://localhost:8000/api/auth/profile/ \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
-```
-
-## Production Deployment
-
-1. **Generate secure SECRET_KEY**:
-   ```bash
-   python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'
-   ```
-
-2. **Update environment variables**:
-   - Set `DEBUG=False`
-   - Set `DJANGO_SETTINGS_MODULE=config.settings.production`
-   - Configure `ALLOWED_HOSTS`
-   - Set up email backend (SMTP)
-   - Use managed PostgreSQL
-
-3. **Security settings** (already configured in production.py):
-   - SSL redirect
-   - Secure cookies
-   - HSTS headers
-   - XSS protection
-   - Content type sniffing protection
-
-4. **Static files**:
-   ```bash
-   python manage.py collectstatic --noinput
-   ```
-
-5. **Database migrations**:
-   ```bash
-   python manage.py migrate --noinput
-   ```
-
-6. **Use production WSGI server** (gunicorn already in requirements):
-   ```bash
-   gunicorn config.wsgi:application --bind 0.0.0.0:8000
-   ```
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SECRET_KEY` | Yes | Auto-generated | Django secret key |
+| `DEBUG` | No | `False` | Debug mode |
+| `DJANGO_SETTINGS_MODULE` | Yes | Set in blueprint | Settings module |
+| `DATABASE_URL` | Yes | Auto-linked | PostgreSQL connection string |
+| `ALLOWED_HOSTS` | Yes | — | Comma-separated hostnames |
+| `CORS_ALLOWED_ORIGINS` | Yes | — | Comma-separated frontend URLs |
+| `FRONTEND_URL` | No | `http://localhost:3000` | For email links |
+| `GOOGLE_CLIENT_ID` | Yes | — | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Yes | — | Google OAuth secret |
+| `RATELIMIT_ENABLE` | No | `True` | Enable rate limiting |
 
 ## Troubleshooting
 
@@ -342,30 +235,34 @@ docker-compose up --build
 ```
 
 **Database connection issues:**
-- Verify `POSTGRES_HOST` in `.env` (`db` for Docker, `localhost` for local)
-- Check database is running: `docker-compose ps`
+- Docker: `POSTGRES_HOST=db`
+- Local: `POSTGRES_HOST=localhost`
+- Check: `docker-compose ps`
 
 **Port already in use:**
 ```bash
 lsof -ti:8000 | xargs kill -9
 ```
 
-**Module not found:**
-- Rebuild: `docker-compose up --build`
-- Check app name in `apps.py` matches path
+**CORS errors in production:**
+- Ensure `CORS_ALLOWED_ORIGINS` is set (no trailing slash)
+- `CorsMiddleware` must be first in `MIDDLEWARE`
+
+**Render build fails:**
+- Clear build cache: Manual Deploy → Clear build cache & deploy
+- Check logs in Render Dashboard → Logs tab
 
 ## Future Enhancements
 
 - [ ] Two-factor authentication (2FA)
-- [ ] Social authentication (Google, GitHub)
+- [x] ~~Social authentication (Google)~~
+- [ ] Social authentication (GitHub)
 - [ ] Role-based permissions (RBAC)
 - [ ] Celery for async tasks
 - [ ] Redis for caching
-- [ ] WebSocket support
 - [ ] API versioning
 - [ ] Monitoring (Sentry, Prometheus)
 - [ ] CI/CD pipeline
-- [ ] Kubernetes deployment
 
 ## License
 
@@ -373,4 +270,4 @@ MIT
 
 ## Author
 
-Evrouin (elwaycortez@gmail.com)
+Evrouin (<elwaycortez@gmail.com>)
