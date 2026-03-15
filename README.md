@@ -14,11 +14,12 @@ Production-ready Django REST API with JWT authentication, Google OAuth, email ve
 - **Google OAuth** - Sign in with Google
 - **Email Verification** - Secure email verification on registration
 - **Password Reset** - Token-based password reset with 24-hour expiry
-- **Todo Management** - Full CRUD with soft delete support
+- **Todo Management** - Full CRUD with soft delete and cursor pagination
+- **Admin Backoffice** - Superuser-only endpoints for user and todo management
 - **Rate Limiting** - IP-based rate limiting on auth endpoints
 - **API Documentation** - Auto-generated Swagger UI and ReDoc
 - **Custom User Model** - Email-based authentication with additional fields
-- **Unit Tests** - 15 comprehensive tests covering auth endpoints
+- **Unit Tests** - 33 comprehensive tests covering auth and todo endpoints
 - **Code Quality** - Black, Flake8, Ruff, MyPy configured
 - **Docker Ready** - Dockerfile with docker-compose
 - **Render Deployment** - Blueprint (`render.yaml`) for one-click deploy
@@ -90,12 +91,24 @@ python manage.py runserver
 
 ### Todos (Authenticated)
 
-- `GET /api/todos/` - List todos (pass `?include_deleted=true` for soft-deleted)
+- `GET /api/todos/` - List todos with cursor pagination (pass `?include_deleted=true` for soft-deleted)
 - `POST /api/todos/` - Create a todo
 - `GET /api/todos/:id/` - Get single todo
 - `PUT /api/todos/:id/` - Full update
 - `PATCH /api/todos/:id/` - Partial update (e.g., toggle completed)
 - `DELETE /api/todos/:id/` - Soft delete (first call) / permanent delete (second call)
+
+### Admin Backoffice (Superuser Only)
+
+- `GET /api/admin/stats/` - Dashboard statistics (users, todos counts)
+- `GET /api/admin/users/` - List all users (pass `?search=` to search by email/username)
+- `POST /api/admin/users/` - Create a new user
+- `GET /api/admin/users/:id/` - Get user detail
+- `PATCH /api/admin/users/:id/` - Update user
+- `DELETE /api/admin/users/:id/` - Delete user (cannot delete yourself)
+- `GET /api/admin/todos/` - List all todos with user info (pass `?search=` to search by title/body/email)
+- `GET /api/admin/todos/:id/` - Get todo detail with user info
+- `DELETE /api/admin/todos/:id/` - Permanently delete a todo
 
 ### Documentation
 
@@ -112,7 +125,11 @@ django-auth/
 │   │   ├── models.py       # Custom User & PasswordResetToken models
 │   │   ├── serializers.py  # DRF serializers
 │   │   ├── views.py        # API views with rate limiting
+│   │   ├── admin_views.py  # Superuser-only admin endpoints
+│   │   ├── admin_serializers.py # Admin-specific serializers
+│   │   ├── permissions.py  # Custom permissions (IsSuperUser)
 │   │   ├── urls.py         # URL routing
+│   │   ├── admin_urls.py   # Admin URL routing
 │   │   ├── admin.py        # Admin configuration
 │   │   └── tests.py        # Unit tests
 │   └── todos/              # Todo management
@@ -257,7 +274,7 @@ lsof -ti:8000 | xargs kill -9
 - [ ] Two-factor authentication (2FA)
 - [x] ~~Social authentication (Google)~~
 - [ ] Social authentication (GitHub)
-- [ ] Role-based permissions (RBAC)
+- [x] ~~Role-based permissions (RBAC)~~
 - [ ] Celery for async tasks
 - [ ] Redis for caching
 - [ ] API versioning
