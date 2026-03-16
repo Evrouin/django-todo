@@ -9,7 +9,7 @@ from rest_framework.response import Response
 
 from apps.todos.models import Todo
 from apps.todos.views import TodoPagination
-from apps.users.admin_serializers import AdminCreateUserSerializer, AdminTodoSerializer
+from apps.users.admin_serializers import AdminCreateUserSerializer, AdminTodoSerializer, AdminUserUpdateSerializer
 from apps.users.permissions import IsSuperUser
 from apps.users.serializers import UserSerializer
 
@@ -51,8 +51,12 @@ class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
     """Get, update, and delete any user (superuser only)."""
 
     permission_classes = [IsSuperUser]
-    serializer_class = UserSerializer
     queryset = User.objects.all()
+
+    def get_serializer_class(self):
+        if self.request.method == "PATCH":
+            return AdminUserUpdateSerializer
+        return UserSerializer
 
     @extend_schema(summary="Get user detail", description="Admin endpoint to get user detail.")
     def retrieve(self, request, *args, **kwargs):

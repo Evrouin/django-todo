@@ -18,12 +18,13 @@ class UserSerializer(serializers.ModelSerializer):
             "avatar",
             "avatar_url",
             "bio",
+            "is_active",
             "is_verified",
             "is_superuser",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "is_verified", "is_superuser", "created_at", "updated_at"]
+        read_only_fields = ["id", "is_active", "is_verified", "is_superuser", "created_at", "updated_at"]
 
 
 class RegisterSerializer(serializers.ModelSerializer):

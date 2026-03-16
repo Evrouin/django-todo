@@ -31,6 +31,14 @@ class AdminTodoSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class AdminUserUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for admin user updates (allows is_active, is_verified, is_superuser)."""
+
+    class Meta:
+        model = User
+        fields = ["username", "email", "phone", "bio", "is_active", "is_verified", "is_superuser"]
+
+
 class AdminCreateUserSerializer(serializers.ModelSerializer):
     """Serializer for admin user creation."""
 
@@ -38,7 +46,7 @@ class AdminCreateUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["email", "username", "password", "is_superuser", "is_verified"]
+        fields = ["email", "username", "password", "is_active", "is_superuser", "is_verified"]
 
     def create(self, validated_data):
         return User.objects.create_user(**validated_data)
