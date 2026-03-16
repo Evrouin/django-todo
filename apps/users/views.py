@@ -255,6 +255,24 @@ def password_reset_confirm(request):
 
 
 @extend_schema(
+    summary="Logout",
+    description="Blacklist the refresh token to log out.",
+)
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def logout(request):
+    """Blacklist refresh token."""
+    refresh_token = request.data.get("refresh")
+    if not refresh_token:
+        return Response({"error": "Refresh token is required."}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        RefreshToken(refresh_token).blacklist()
+        return Response({"message": "Logged out successfully."}, status=status.HTTP_200_OK)
+    except Exception:
+        return Response({"error": "Invalid token."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@extend_schema(
     summary="Delete user account",
     description="Permanently delete the authenticated user's account.",
 )
