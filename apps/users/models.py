@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.db.models import Q
 from django.utils.crypto import get_random_string
 
 
@@ -11,7 +12,7 @@ class User(AbstractUser):
     avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
     bio = models.TextField(blank=True, default="")
     is_verified = models.BooleanField(default=False)
-    verification_token = models.CharField(max_length=100, blank=True, default="")
+    verification_token = models.CharField(max_length=100, blank=True, default="", db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -49,7 +50,14 @@ class PasswordResetToken(models.Model):
 
     @classmethod
     def create_token(cls, user):
-        """Create a new password reset token."""
+        """Create a new password reset token and clean up expired ones."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        cls.objects.filter(
+            Q(created_at__lt=timezone.now() - timedelta(hours=24)) | Q(is_used=True)
+        ).delete()
         token = get_random_string(64)
         return cls.objects.create(user=user, token=token)
 
