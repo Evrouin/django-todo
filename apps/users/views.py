@@ -257,8 +257,8 @@ def google_login(request):
             client_id = config("GOOGLE_CLIENT_ID")
             idinfo = id_token.verify_oauth2_token(token, requests.Request(), client_id)
         except ValueError:
-            import urllib.request
             import json
+            import urllib.request
 
             req = urllib.request.Request(
                 "https://www.googleapis.com/oauth2/v3/userinfo",

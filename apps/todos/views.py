@@ -4,8 +4,9 @@ from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, status
+from rest_framework.decorators import api_view
+from rest_framework.decorators import permission_classes as perm_classes
 from rest_framework.pagination import CursorPagination
-from rest_framework.decorators import api_view, permission_classes as perm_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -40,7 +41,7 @@ class TodoListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
     pagination_class = TodoPagination
 
     def get_queryset(self):
-        queryset = Todo.objects.filter(user=self.request.user)
+        queryset = Todo.objects.filter(user=self.request.user)  # type: ignore[misc]
         if self.request.query_params.get("include_deleted") != "true":
             queryset = queryset.filter(deleted=False)
         return queryset
@@ -83,7 +84,7 @@ class TodoDetailView(ApiResponseMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = TodoSerializer
 
     def get_queryset(self):
-        return Todo.objects.filter(user=self.request.user)
+        return Todo.objects.filter(user=self.request.user)  # type: ignore[misc]
 
     @extend_schema(summary="Get todo", description="Get a single todo by ID.")
     def retrieve(self, request, *args, **kwargs):
