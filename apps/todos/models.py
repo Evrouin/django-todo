@@ -18,6 +18,10 @@ class Todo(models.Model):
     class Meta:
         db_table = "todos"
         ordering = ["-pinned", "-created_at"]
+        indexes = [
+            models.Index(fields=["user", "deleted"]),
+            models.Index(fields=["user", "-pinned", "-created_at"]),
+        ]
 
     def __str__(self):
         return self.title
