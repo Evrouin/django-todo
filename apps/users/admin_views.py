@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.db.models import Count, Q
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema
 from rest_framework import filters, generics
@@ -106,18 +107,21 @@ class AdminTodoDetailView(generics.RetrieveDestroyAPIView):
 def admin_stats(request):
     """Dashboard statistics."""
     now = timezone.now()
-    return Response(
-        {
-            "users": {
-                "total": User.objects.count(),
-                "verified": User.objects.filter(is_verified=True).count(),
-                "joined_today": User.objects.filter(created_at__date=now.date()).count(),
-            },
-            "todos": {
-                "total": Todo.objects.count(),
-                "completed": Todo.objects.filter(completed=True).count(),
-                "deleted": Todo.objects.filter(deleted=True).count(),
-                "active": Todo.objects.filter(completed=False, deleted=False).count(),
-            },
-        }
+    user_stats = User.objects.aggregate(
+        total=Count("id"),
+        verified=Count("id", filter=Q(is_verified=True)),
+        joined_today=Count("id", filter=Q(created_at__date=now.date())),
     )
+    todo_agg = Todo.objects.aggregate(
+        total=Count("id"),
+        completed_count=Count("id", filter=Q(completed=True)),
+        deleted_count=Count("id", filter=Q(deleted=True)),
+        active_count=Count("id", filter=Q(completed=False, deleted=False)),
+    )
+    todo_stats = {
+        "total": todo_agg["total"],
+        "completed": todo_agg["completed_count"],
+        "deleted": todo_agg["deleted_count"],
+        "active": todo_agg["active_count"],
+    }
+    return Response({"users": user_stats, "todos": todo_stats})
