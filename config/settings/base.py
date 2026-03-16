@@ -123,7 +123,7 @@ REST_FRAMEWORK = {
 
 # API Documentation
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Django Auth API",
+    "TITLE": "Minimal List API",
     "DESCRIPTION": "Production-ready authentication API with JWT, email verification, and password reset",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
