@@ -286,9 +286,16 @@ def google_login(request):
                 "username": username,
                 "first_name": idinfo.get("given_name", ""),
                 "last_name": idinfo.get("family_name", ""),
+                "avatar_url": idinfo.get("picture", ""),
                 "is_verified": True,  # Google emails are verified
             },
         )
+
+        if not created:
+            avatar_url = idinfo.get("picture", "")
+            if avatar_url and user.avatar_url != avatar_url:
+                user.avatar_url = avatar_url
+                user.save(update_fields=["avatar_url"])
 
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)

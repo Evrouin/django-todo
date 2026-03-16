@@ -10,6 +10,7 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
     phone = models.CharField(max_length=20, blank=True, default="")
     avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
+    avatar_url = models.URLField(blank=True, default="")
     bio = models.TextField(blank=True, default="")
     is_verified = models.BooleanField(default=False)
     verification_token = models.CharField(max_length=100, blank=True, default="", db_index=True)

@@ -16,6 +16,7 @@ class UserSerializer(serializers.ModelSerializer):
             "username",
             "phone",
             "avatar",
+            "avatar_url",
             "bio",
             "is_verified",
             "is_superuser",
