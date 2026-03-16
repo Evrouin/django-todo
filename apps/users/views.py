@@ -298,6 +298,7 @@ def delete_account(request):
 )
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@ratelimit(key="ip", rate="10/h", method="POST")
 def google_login(request):
     """Authenticate with Google OAuth."""
     token = request.data.get("token")
