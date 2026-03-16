@@ -2,6 +2,7 @@ from decouple import config  # type: ignore[import-untyped]
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
+from django.utils.crypto import get_random_string
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
 from drf_spectacular.types import OpenApiTypes
@@ -275,9 +276,14 @@ def google_login(request):
 
         # Get or create user
         User = get_user_model()
+        base_username = email.split("@")[0]
+        username = base_username
+        if User.objects.filter(username=username).exists():
+            username = f"user{get_random_string(10, '0123456789')}"
         user, created = User.objects.get_or_create(
             email=email,
             defaults={
+                "username": username,
                 "first_name": idinfo.get("given_name", ""),
                 "last_name": idinfo.get("family_name", ""),
                 "is_verified": True,  # Google emails are verified
