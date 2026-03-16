@@ -42,7 +42,9 @@ class TodoListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
 
     def get_queryset(self):
         queryset = Todo.objects.filter(user=self.request.user)  # type: ignore[misc]
-        if self.request.query_params.get("include_deleted") != "true":
+        if self.request.query_params.get("deleted_only") == "true":
+            queryset = queryset.filter(deleted=True)
+        elif self.request.query_params.get("include_deleted") != "true":
             queryset = queryset.filter(deleted=False)
         return queryset
 
@@ -119,7 +121,7 @@ class TodoDetailView(ApiResponseMixin, generics.RetrieveUpdateDestroyAPIView):
         return self.api_response({"success": True})
 
 
-@extend_schema(summary="Bulk delete todos", description="Soft or permanent delete multiple todos by IDs.")
+@extend_schema(summary="Bulk delete todos", description="Soft delete multiple todos by IDs.")
 @api_view(["POST"])
 @perm_classes([IsAuthenticated])
 def bulk_delete_todos(request):
@@ -144,4 +146,16 @@ def bulk_pin_todos(request):
     if not ids:
         return Response({"error": "No IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
     Todo.objects.filter(id__in=ids, user=request.user).update(pinned=pinned)
+    return Response({"success": True})
+
+
+@extend_schema(summary="Bulk restore todos", description="Restore multiple soft-deleted todos by IDs.")
+@api_view(["POST"])
+@perm_classes([IsAuthenticated])
+def bulk_restore_todos(request):
+    """Bulk restore soft-deleted todos."""
+    ids = request.data.get("ids", [])
+    if not ids:
+        return Response({"error": "No IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
+    Todo.objects.filter(id__in=ids, user=request.user, deleted=True).update(deleted=False)
     return Response({"success": True})
