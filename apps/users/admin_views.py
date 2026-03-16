@@ -3,6 +3,7 @@ from django.utils import timezone
 from drf_spectacular.utils import extend_schema
 from rest_framework import filters, generics
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.pagination import CursorPagination
 from rest_framework.response import Response
 
 from apps.todos.models import Todo
@@ -14,11 +15,20 @@ from apps.users.serializers import UserSerializer
 User = get_user_model()
 
 
+class AdminUserPagination(CursorPagination):
+    """Cursor pagination for admin user list."""
+
+    page_size = 20
+    ordering = "-created_at"
+    cursor_query_param = "cursor"
+
+
 class AdminUserListView(generics.ListCreateAPIView):
     """List and create users (superuser only)."""
 
     permission_classes = [IsSuperUser]
     queryset = User.objects.all().order_by("-created_at")
+    pagination_class = AdminUserPagination
     filter_backends = [filters.SearchFilter]
     search_fields = ["email", "username"]
 
