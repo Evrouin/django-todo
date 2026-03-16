@@ -160,14 +160,24 @@ class ChangePasswordView(generics.UpdateAPIView):
 @ratelimit(key="ip", rate="3/h", method="POST")
 def verify_email(request, token):
     """Verify user email with token."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
     try:
         user = User.objects.get(verification_token=token)
         if user.is_verified:
             return Response({"message": "Email already verified."}, status=status.HTTP_200_OK)
 
+        if timezone.now() - user.created_at > timedelta(hours=24):
+            return Response(
+                {"error": "Verification token has expired. Please register again."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         user.is_verified = True
-        user.verification_token = None  # type: ignore[assignment]
-        user.save()
+        user.verification_token = ""
+        user.save(update_fields=["is_verified", "verification_token"])
 
         return Response({"message": "Email verified successfully."}, status=status.HTTP_200_OK)
     except User.DoesNotExist:
