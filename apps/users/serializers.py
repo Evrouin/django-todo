@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.utils.crypto import get_random_string
 from rest_framework import serializers
 
 User = get_user_model()
@@ -32,6 +33,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
     password2 = serializers.CharField(write_only=True, required=True)
+    username = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = User
@@ -44,6 +46,8 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop("password2")
+        if not validated_data.get("username"):
+            validated_data["username"] = f"user{get_random_string(10, '0123456789')}"
         user = User.objects.create_user(**validated_data)
         user.generate_verification_token()
         return user
