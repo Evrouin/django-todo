@@ -27,3 +27,17 @@ EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")  # noqa: F405
 
 LOGGING["root"]["level"] = "WARNING"  # type: ignore[index]
 LOGGING["loggers"]["django"]["level"] = "WARNING"  # type: ignore[index]
+
+# S3-compatible storage (Cloudflare R2)
+AWS_ACCESS_KEY_ID = config("AWS_ACCESS_KEY_ID", default="")  # noqa: F405
+AWS_SECRET_ACCESS_KEY = config("AWS_SECRET_ACCESS_KEY", default="")  # noqa: F405
+AWS_STORAGE_BUCKET_NAME = config("AWS_STORAGE_BUCKET_NAME", default="")  # noqa: F405
+AWS_S3_ENDPOINT_URL = config("AWS_S3_ENDPOINT_URL", default="")  # noqa: F405
+AWS_S3_CUSTOM_DOMAIN = config("AWS_S3_CUSTOM_DOMAIN", default="")  # noqa: F405
+AWS_QUERYSTRING_AUTH = False
+AWS_S3_FILE_OVERWRITE = False
+
+if AWS_ACCESS_KEY_ID:
+    STORAGES["default"] = {  # noqa: F405
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+    }
