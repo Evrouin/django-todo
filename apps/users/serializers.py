@@ -9,6 +9,8 @@ User = get_user_model()
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for user details."""
 
+    has_password = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = [
@@ -19,13 +21,17 @@ class UserSerializer(serializers.ModelSerializer):
             "avatar",
             "avatar_url",
             "bio",
+            "has_password",
             "is_active",
             "is_verified",
             "is_superuser",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "is_active", "is_verified", "is_superuser", "created_at", "updated_at"]
+        read_only_fields = ["id", "has_password", "is_active", "is_verified", "is_superuser", "created_at", "updated_at"]
+
+    def get_has_password(self, obj):
+        return obj.has_usable_password()
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -51,6 +57,19 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(**validated_data)
         user.generate_verification_token()
         return user
+
+
+class SetPasswordSerializer(serializers.Serializer):
+    """Serializer for setting/changing password."""
+
+    current_password = serializers.CharField(required=False)
+    new_password = serializers.CharField(required=True, validators=[validate_password])
+    confirm_password = serializers.CharField(required=True)
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError({"new_password": "Passwords don't match."})
+        return attrs
 
 
 class ChangePasswordSerializer(serializers.Serializer):

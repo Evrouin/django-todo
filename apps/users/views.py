@@ -23,6 +23,7 @@ from .serializers import (
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
     RegisterSerializer,
+    SetPasswordSerializer,
     UserSerializer,
 )
 
@@ -255,6 +256,44 @@ def password_reset_confirm(request):
 
 
 @extend_schema(
+    summary="Set or change password",
+    description="Set password for OAuth users (no current password) or change password for existing users.",
+)
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@ratelimit(key="user", rate="5/h", method="POST")
+def set_password(request):
+    """Set or change password."""
+    serializer = SetPasswordSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    user = request.user
+    had_password = user.has_usable_password()
+    if had_password:
+        current = serializer.validated_data.get("current_password")
+        if not current or not user.check_password(current):
+            return Response({"current_password": "Wrong password."}, status=status.HTTP_400_BAD_REQUEST)
+
+    user.set_password(serializer.validated_data["new_password"])
+    user.save()
+
+    OutstandingToken.objects.filter(user=user).delete()
+    refresh = RefreshToken.for_user(user)
+
+    msg = "Password changed successfully." if had_password else "Password set successfully."
+    return Response(
+        {
+            "message": msg,
+            "tokens": {
+                "refresh": str(refresh),
+                "access": str(refresh.access_token),  # type: ignore[attr-defined]
+            },
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@extend_schema(
     summary="Logout",
     description="Blacklist the refresh token to log out.",
 )
@@ -341,6 +380,10 @@ def google_login(request):
                 "is_verified": True,  # Google emails are verified
             },
         )
+
+        if created:
+            user.set_unusable_password()
+            user.save(update_fields=["password"])
 
         if not created:
             updated_fields = []

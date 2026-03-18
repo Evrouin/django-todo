@@ -11,6 +11,7 @@ from .views import (
     logout,
     password_reset_confirm,
     password_reset_request,
+    set_password,
     verify_email,
 )
 
@@ -29,5 +30,6 @@ urlpatterns = [
     # User management
     path("profile/", UserProfileView.as_view(), name="user_profile"),
     path("change-password/", ChangePasswordView.as_view(), name="change_password"),
+    path("set-password/", set_password, name="set_password"),
     path("delete-account/", delete_account, name="delete_account"),
 ]
