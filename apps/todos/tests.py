@@ -1,11 +1,26 @@
+import io
+
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.contrib.auth import get_user_model
+from django.test.utils import override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
+from PIL import Image as PilImage
 
 from .models import Todo
 
 User = get_user_model()
+
+
+def make_test_image(*, color: tuple[int, int, int], name: str) -> SimpleUploadedFile:
+    """Create an in-memory image suitable for upload tests."""
+
+    image = PilImage.new("RGB", (64, 64), color=color)
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    buffer.seek(0)
+    return SimpleUploadedFile(name=name, content=buffer.read(), content_type="image/png")
 
 
 @pytest.fixture
@@ -218,6 +233,102 @@ class TestTodoDelete:
         api_client.force_authenticate(user=user2)
         response = api_client.delete(f"/api/todos/{todo.id}/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.django_db
+class TestTodoImageStorageCleanup:
+    """Test file cleanup on image replacement and permanent deletion."""
+
+    def test_replacing_image_deletes_old_files(self, auth_client, tmp_path):
+        client, user = auth_client
+        image1 = make_test_image(color=(255, 0, 0), name="image1.png")
+        image2 = make_test_image(color=(0, 255, 0), name="image2.png")
+
+        with override_settings(
+            MEDIA_ROOT=tmp_path,
+            STORAGES={
+                "default": {
+                    "BACKEND": "django.core.files.storage.FileSystemStorage",
+                    "OPTIONS": {"location": str(tmp_path)},
+                },
+                "staticfiles": {
+                    "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+                },
+            },
+        ):
+            response = client.post(
+                "/api/todos/",
+                {"title": "Todo with image", "body": "Details", "image": image1},
+                format="multipart",
+            )
+            assert response.status_code == status.HTTP_201_CREATED
+
+            todo = Todo.objects.get(id=response.data["data"]["id"])
+            old_image_name = todo.image.name
+            old_thumbnail_name = todo.thumbnail.name
+            assert (tmp_path / old_image_name).exists()
+            assert (tmp_path / old_thumbnail_name).exists()
+
+            response = client.put(
+                f"/api/todos/{todo.id}/",
+                {"title": "Replaced", "body": "New body", "image": image2},
+                format="multipart",
+            )
+            assert response.status_code == status.HTTP_200_OK
+
+            todo.refresh_from_db()
+            new_image_name = todo.image.name
+            new_thumbnail_name = todo.thumbnail.name
+            assert (tmp_path / new_image_name).exists()
+            assert (tmp_path / new_thumbnail_name).exists()
+
+            # Old objects should be removed from storage.
+            assert not (tmp_path / old_image_name).exists()
+            assert not (tmp_path / old_thumbnail_name).exists()
+
+    def test_permanent_delete_removes_files(self, auth_client, tmp_path):
+        client, user = auth_client
+        image = make_test_image(color=(0, 0, 255), name="image.png")
+
+        with override_settings(
+            MEDIA_ROOT=tmp_path,
+            STORAGES={
+                "default": {
+                    "BACKEND": "django.core.files.storage.FileSystemStorage",
+                    "OPTIONS": {"location": str(tmp_path)},
+                },
+                "staticfiles": {
+                    "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+                },
+            },
+        ):
+            response = client.post(
+                "/api/todos/",
+                {"title": "Todo to delete", "body": "Details", "image": image},
+                format="multipart",
+            )
+            assert response.status_code == status.HTTP_201_CREATED
+
+            todo = Todo.objects.get(id=response.data["data"]["id"])
+            old_image_name = todo.image.name
+            old_thumbnail_name = todo.thumbnail.name
+            assert (tmp_path / old_image_name).exists()
+            assert (tmp_path / old_thumbnail_name).exists()
+
+            # First delete is a soft delete: files must remain.
+            response = client.delete(f"/api/todos/{todo.id}/")
+            assert response.status_code == status.HTTP_200_OK
+            todo.refresh_from_db()
+            assert todo.deleted is True
+            assert (tmp_path / old_image_name).exists()
+            assert (tmp_path / old_thumbnail_name).exists()
+
+            # Second delete is permanent: files must be removed.
+            response = client.delete(f"/api/todos/{todo.id}/")
+            assert response.status_code == status.HTTP_200_OK
+            assert not Todo.objects.filter(id=todo.id).exists()
+            assert not (tmp_path / old_image_name).exists()
+            assert not (tmp_path / old_thumbnail_name).exists()
 
 
 @pytest.mark.django_db
