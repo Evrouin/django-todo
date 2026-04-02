@@ -10,12 +10,12 @@ from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Todo
-from .serializers import TodoSerializer
+from .models import Note
+from .serializers import NoteSerializer
 
 
-class TodoPagination(CursorPagination):
-    """Cursor pagination for todos."""
+class NotePagination(CursorPagination):
+    """Cursor pagination for notes."""
 
     page_size = 20
     ordering = "-created_at"
@@ -33,15 +33,15 @@ class ApiResponseMixin:
 
 
 @method_decorator(ratelimit(key="user", rate="60/h", method="POST"), name="dispatch")
-class TodoListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
-    """List and create todos for the authenticated user."""
+class NoteListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
+    """List and create notes for the authenticated user."""
 
     permission_classes = [IsAuthenticated]
-    serializer_class = TodoSerializer
-    pagination_class = TodoPagination
+    serializer_class = NoteSerializer
+    pagination_class = NotePagination
 
     def get_queryset(self):
-        queryset = Todo.objects.filter(user=self.request.user)  # type: ignore[misc]
+        queryset = Note.objects.filter(user=self.request.user)  # type: ignore[misc]
         if self.request.query_params.get("deleted_only") == "true":
             queryset = queryset.filter(deleted=True)
         elif self.request.query_params.get("include_deleted") != "true":
@@ -53,7 +53,7 @@ class TodoListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
             queryset = queryset.filter(completed=False)
         return queryset
 
-    @extend_schema(summary="List todos", description="Get all todos for the authenticated user. Pass ?include_deleted=true to include soft-deleted todos.")
+    @extend_schema(summary="List notes", description="Get all notes for the authenticated user. Pass ?include_deleted=true to include soft-deleted notes.")
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         page = self.paginate_queryset(queryset)
@@ -69,13 +69,13 @@ class TodoListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
             },
         )
 
-    MAX_TODOS_PER_USER = 100
+    MAX_NOTES_PER_USER = 100
 
-    @extend_schema(summary="Create todo", description="Create a new todo for the authenticated user.")
+    @extend_schema(summary="Create note", description="Create a new note for the authenticated user.")
     def create(self, request, *args, **kwargs):
-        if not settings.DEBUG and Todo.objects.filter(user=request.user, deleted=False).count() >= self.MAX_TODOS_PER_USER:
+        if not settings.DEBUG and Note.objects.filter(user=request.user, deleted=False).count() >= self.MAX_NOTES_PER_USER:
             return self.api_response(
-                {"error": f"Todo limit reached ({self.MAX_TODOS_PER_USER}). Delete some todos first."},
+                {"error": f"Note limit reached ({self.MAX_NOTES_PER_USER}). Delete some notes first."},
                 status.HTTP_400_BAD_REQUEST,
             )
         serializer = self.get_serializer(data=request.data)
@@ -84,22 +84,22 @@ class TodoListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
         return self.api_response(serializer.data, status.HTTP_201_CREATED)
 
 
-class TodoDetailView(ApiResponseMixin, generics.RetrieveUpdateDestroyAPIView):
-    """Retrieve, update, and delete a single todo."""
+class NoteDetailView(ApiResponseMixin, generics.RetrieveUpdateDestroyAPIView):
+    """Retrieve, update, and delete a single note."""
 
     permission_classes = [IsAuthenticated]
-    serializer_class = TodoSerializer
+    serializer_class = NoteSerializer
 
     def get_queryset(self):
-        return Todo.objects.filter(user=self.request.user)  # type: ignore[misc]
+        return Note.objects.filter(user=self.request.user)  # type: ignore[misc]
 
-    @extend_schema(summary="Get todo", description="Get a single todo by ID.")
+    @extend_schema(summary="Get note", description="Get a single note by ID.")
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
         return self.api_response(serializer.data)
 
-    @extend_schema(summary="Update todo", description="Full update of a todo.")
+    @extend_schema(summary="Update note", description="Full update of a note.")
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
@@ -107,7 +107,7 @@ class TodoDetailView(ApiResponseMixin, generics.RetrieveUpdateDestroyAPIView):
         serializer.save()
         return self.api_response(serializer.data)
 
-    @extend_schema(summary="Partial update todo", description="Partial update of a todo (e.g., toggle completed).")
+    @extend_schema(summary="Partial update note", description="Partial update of a note (e.g., toggle completed).")
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
@@ -115,7 +115,7 @@ class TodoDetailView(ApiResponseMixin, generics.RetrieveUpdateDestroyAPIView):
         serializer.save()
         return self.api_response(serializer.data)
 
-    @extend_schema(summary="Delete todo", description="Soft delete on first call, permanent delete if already soft-deleted.")
+    @extend_schema(summary="Delete note", description="Soft delete on first call, permanent delete if already soft-deleted.")
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         if instance.deleted:
@@ -126,41 +126,41 @@ class TodoDetailView(ApiResponseMixin, generics.RetrieveUpdateDestroyAPIView):
         return self.api_response({"success": True})
 
 
-@extend_schema(summary="Bulk delete todos", description="Soft delete multiple todos by IDs.")
+@extend_schema(summary="Bulk delete notes", description="Soft delete multiple notes by IDs.")
 @api_view(["POST"])
 @perm_classes([IsAuthenticated])
-def bulk_delete_todos(request):
-    """Bulk delete todos. Soft-deletes active todos, permanently deletes already soft-deleted ones."""
+def bulk_delete_notes(request):
+    """Bulk delete notes. Soft-deletes active notes, permanently deletes already soft-deleted ones."""
     ids = request.data.get("ids", [])
     if not ids:
         return Response({"error": "No IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
-    todos = Todo.objects.filter(id__in=ids, user=request.user)
-    permanent_ids = list(todos.filter(deleted=True).values_list("id", flat=True))
-    todos.filter(deleted=False).update(deleted=True)
-    Todo.objects.filter(id__in=permanent_ids).delete()
+    notes = Note.objects.filter(id__in=ids, user=request.user)
+    permanent_ids = list(notes.filter(deleted=True).values_list("id", flat=True))
+    notes.filter(deleted=False).update(deleted=True)
+    Note.objects.filter(id__in=permanent_ids).delete()
     return Response({"success": True})
 
 
-@extend_schema(summary="Bulk pin/unpin todos", description="Pin or unpin multiple todos by IDs.")
+@extend_schema(summary="Bulk pin/unpin notes", description="Pin or unpin multiple notes by IDs.")
 @api_view(["POST"])
 @perm_classes([IsAuthenticated])
-def bulk_pin_todos(request):
-    """Bulk pin or unpin todos."""
+def bulk_pin_notes(request):
+    """Bulk pin or unpin notes."""
     ids = request.data.get("ids", [])
     pinned = request.data.get("pinned", True)
     if not ids:
         return Response({"error": "No IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
-    Todo.objects.filter(id__in=ids, user=request.user).update(pinned=pinned)
+    Note.objects.filter(id__in=ids, user=request.user).update(pinned=pinned)
     return Response({"success": True})
 
 
-@extend_schema(summary="Bulk restore todos", description="Restore multiple soft-deleted todos by IDs.")
+@extend_schema(summary="Bulk restore notes", description="Restore multiple soft-deleted notes by IDs.")
 @api_view(["POST"])
 @perm_classes([IsAuthenticated])
-def bulk_restore_todos(request):
-    """Bulk restore soft-deleted todos."""
+def bulk_restore_notes(request):
+    """Bulk restore soft-deleted notes."""
     ids = request.data.get("ids", [])
     if not ids:
         return Response({"error": "No IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
-    Todo.objects.filter(id__in=ids, user=request.user, deleted=True).update(deleted=False)
+    Note.objects.filter(id__in=ids, user=request.user, deleted=True).update(deleted=False)
     return Response({"success": True})

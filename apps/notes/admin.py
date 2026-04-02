@@ -1,11 +1,11 @@
 from django.contrib import admin
 
-from .models import Todo
+from .models import Note
 
 
-@admin.register(Todo)
-class TodoAdmin(admin.ModelAdmin):
-    """Admin for todos."""
+@admin.register(Note)
+class NoteAdmin(admin.ModelAdmin):
+    """Admin for notes."""
 
     list_display = ["title", "user", "completed", "deleted", "created_at"]
     list_filter = ["completed", "deleted", "created_at"]

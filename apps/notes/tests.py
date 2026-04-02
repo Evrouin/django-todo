@@ -8,7 +8,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from PIL import Image as PilImage
 
-from .models import Todo
+from .models import Note
 
 User = get_user_model()
 
@@ -52,191 +52,191 @@ def auth_client(api_client, create_user):
 
 
 @pytest.fixture
-def create_todo(db):
-    """Create a test todo."""
+def create_note(db):
+    """Create a test note."""
 
-    def make_todo(user, **kwargs):
-        return Todo.objects.create(
+    def make_note(user, **kwargs):
+        return Note.objects.create(
             user=user,
-            title=kwargs.get("title", "Test todo"),
+            title=kwargs.get("title", "Test note"),
             body=kwargs.get("body", "Test body"),
             completed=kwargs.get("completed", False),
             deleted=kwargs.get("deleted", False),
         )
 
-    return make_todo
+    return make_note
 
 
 @pytest.mark.django_db
-class TestTodoList:
-    """Test todo list endpoint."""
+class TestNoteList:
+    """Test note list endpoint."""
 
-    def test_list_todos(self, auth_client, create_todo):
-        """Test listing todos for authenticated user."""
+    def test_list_notes(self, auth_client, create_note):
+        """Test listing notes for authenticated user."""
         client, user = auth_client
-        create_todo(user, title="Todo 1")
-        create_todo(user, title="Todo 2")
-        response = client.get("/api/todos/")
+        create_note(user, title="Note 1")
+        create_note(user, title="Note 2")
+        response = client.get("/api/notes/")
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data["data"]) == 2
 
-    def test_list_excludes_deleted(self, auth_client, create_todo):
-        """Test that soft-deleted todos are excluded by default."""
+    def test_list_excludes_deleted(self, auth_client, create_note):
+        """Test that soft-deleted notes are excluded by default."""
         client, user = auth_client
-        create_todo(user, title="Active")
-        create_todo(user, title="Deleted", deleted=True)
-        response = client.get("/api/todos/")
+        create_note(user, title="Active")
+        create_note(user, title="Deleted", deleted=True)
+        response = client.get("/api/notes/")
         assert len(response.data["data"]) == 1
         assert response.data["data"][0]["title"] == "Active"
 
-    def test_list_include_deleted(self, auth_client, create_todo):
-        """Test including soft-deleted todos with query param."""
+    def test_list_include_deleted(self, auth_client, create_note):
+        """Test including soft-deleted notes with query param."""
         client, user = auth_client
-        create_todo(user, title="Active")
-        create_todo(user, title="Deleted", deleted=True)
-        response = client.get("/api/todos/?include_deleted=true")
+        create_note(user, title="Active")
+        create_note(user, title="Deleted", deleted=True)
+        response = client.get("/api/notes/?include_deleted=true")
         assert len(response.data["data"]) == 2
 
-    def test_list_only_own_todos(self, api_client, create_user, create_todo):
-        """Test that users only see their own todos."""
+    def test_list_only_own_notes(self, api_client, create_user, create_note):
+        """Test that users only see their own notes."""
         user1 = create_user(email="user1@example.com", username="user1")
         user2 = create_user(email="user2@example.com", username="user2")
-        create_todo(user1, title="User1 todo")
-        create_todo(user2, title="User2 todo")
+        create_note(user1, title="User1 note")
+        create_note(user2, title="User2 note")
         api_client.force_authenticate(user=user1)
-        response = api_client.get("/api/todos/")
+        response = api_client.get("/api/notes/")
         assert len(response.data["data"]) == 1
-        assert response.data["data"][0]["title"] == "User1 todo"
+        assert response.data["data"][0]["title"] == "User1 note"
 
     def test_list_unauthenticated(self, api_client):
-        """Test that unauthenticated users cannot list todos."""
-        response = api_client.get("/api/todos/")
+        """Test that unauthenticated users cannot list notes."""
+        response = api_client.get("/api/notes/")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
 @pytest.mark.django_db
-class TestTodoCreate:
-    """Test todo creation endpoint."""
+class TestNoteCreate:
+    """Test note creation endpoint."""
 
-    def test_create_todo(self, auth_client):
-        """Test creating a todo."""
+    def test_create_note(self, auth_client):
+        """Test creating a note."""
         client, user = auth_client
-        response = client.post("/api/todos/", {"title": "New todo", "body": "Details"})
+        response = client.post("/api/notes/", {"title": "New note", "body": "Details"})
         assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["data"]["title"] == "New todo"
-        assert Todo.objects.filter(user=user).count() == 1
+        assert response.data["data"]["title"] == "New note"
+        assert Note.objects.filter(user=user).count() == 1
 
-    def test_create_todo_minimal(self, auth_client):
-        """Test creating a todo with only title."""
+    def test_create_note_minimal(self, auth_client):
+        """Test creating a note with only title."""
         client, _ = auth_client
-        response = client.post("/api/todos/", {"title": "Just a title"})
+        response = client.post("/api/notes/", {"title": "Just a title"})
         assert response.status_code == status.HTTP_201_CREATED
         assert response.data["data"]["completed"] is False
         assert response.data["data"]["deleted"] is False
 
-    def test_create_todo_no_title(self, auth_client):
-        """Test creating a todo without title fails."""
+    def test_create_note_no_title(self, auth_client):
+        """Test creating a note without title fails."""
         client, _ = auth_client
-        response = client.post("/api/todos/", {"body": "No title"})
+        response = client.post("/api/notes/", {"body": "No title"})
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
 
 @pytest.mark.django_db
-class TestTodoDetail:
-    """Test todo detail endpoint."""
+class TestNoteDetail:
+    """Test note detail endpoint."""
 
-    def test_get_todo(self, auth_client, create_todo):
-        """Test getting a single todo."""
+    def test_get_note(self, auth_client, create_note):
+        """Test getting a single note."""
         client, user = auth_client
-        todo = create_todo(user)
-        response = client.get(f"/api/todos/{todo.id}/")
+        note = create_note(user)
+        response = client.get(f"/api/notes/{note.id}/")
         assert response.status_code == status.HTTP_200_OK
-        assert response.data["data"]["title"] == todo.title
+        assert response.data["data"]["title"] == note.title
 
-    def test_get_other_user_todo(self, api_client, create_user, create_todo):
-        """Test that users cannot access other users' todos."""
+    def test_get_other_user_note(self, api_client, create_user, create_note):
+        """Test that users cannot access other users' notes."""
         user1 = create_user(email="user1@example.com", username="user1")
         user2 = create_user(email="user2@example.com", username="user2")
-        todo = create_todo(user1)
+        note = create_note(user1)
         api_client.force_authenticate(user=user2)
-        response = api_client.get(f"/api/todos/{todo.id}/")
+        response = api_client.get(f"/api/notes/{note.id}/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_get_nonexistent_todo(self, auth_client):
-        """Test getting a todo that doesn't exist."""
+    def test_get_nonexistent_note(self, auth_client):
+        """Test getting a note that doesn't exist."""
         client, _ = auth_client
-        response = client.get("/api/todos/99999/")
+        response = client.get("/api/notes/99999/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 @pytest.mark.django_db
-class TestTodoUpdate:
-    """Test todo update endpoints."""
+class TestNoteUpdate:
+    """Test note update endpoints."""
 
-    def test_full_update(self, auth_client, create_todo):
-        """Test full update of a todo."""
+    def test_full_update(self, auth_client, create_note):
+        """Test full update of a note."""
         client, user = auth_client
-        todo = create_todo(user)
+        note = create_note(user)
         response = client.put(
-            f"/api/todos/{todo.id}/",
+            f"/api/notes/{note.id}/",
             {"title": "Updated", "body": "Updated body", "completed": True},
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.data["data"]["title"] == "Updated"
         assert response.data["data"]["completed"] is True
 
-    def test_partial_update(self, auth_client, create_todo):
+    def test_partial_update(self, auth_client, create_note):
         """Test partial update (toggle completed)."""
         client, user = auth_client
-        todo = create_todo(user)
-        response = client.patch(f"/api/todos/{todo.id}/", {"completed": True})
+        note = create_note(user)
+        response = client.patch(f"/api/notes/{note.id}/", {"completed": True})
         assert response.status_code == status.HTTP_200_OK
         assert response.data["data"]["completed"] is True
-        assert response.data["data"]["title"] == todo.title
+        assert response.data["data"]["title"] == note.title
 
-    def test_update_other_user_todo(self, api_client, create_user, create_todo):
-        """Test that users cannot update other users' todos."""
+    def test_update_other_user_note(self, api_client, create_user, create_note):
+        """Test that users cannot update other users' notes."""
         user1 = create_user(email="user1@example.com", username="user1")
         user2 = create_user(email="user2@example.com", username="user2")
-        todo = create_todo(user1)
+        note = create_note(user1)
         api_client.force_authenticate(user=user2)
-        response = api_client.patch(f"/api/todos/{todo.id}/", {"completed": True})
+        response = api_client.patch(f"/api/notes/{note.id}/", {"completed": True})
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 @pytest.mark.django_db
-class TestTodoDelete:
-    """Test todo delete endpoint."""
+class TestNoteDelete:
+    """Test note delete endpoint."""
 
-    def test_soft_delete(self, auth_client, create_todo):
-        """Test first delete soft-deletes the todo."""
+    def test_soft_delete(self, auth_client, create_note):
+        """Test first delete soft-deletes the note."""
         client, user = auth_client
-        todo = create_todo(user)
-        response = client.delete(f"/api/todos/{todo.id}/")
+        note = create_note(user)
+        response = client.delete(f"/api/notes/{note.id}/")
         assert response.status_code == status.HTTP_200_OK
-        todo.refresh_from_db()
-        assert todo.deleted is True
+        note.refresh_from_db()
+        assert note.deleted is True
 
-    def test_permanent_delete(self, auth_client, create_todo):
-        """Test second delete permanently removes the todo."""
+    def test_permanent_delete(self, auth_client, create_note):
+        """Test second delete permanently removes the note."""
         client, user = auth_client
-        todo = create_todo(user, deleted=True)
-        response = client.delete(f"/api/todos/{todo.id}/")
+        note = create_note(user, deleted=True)
+        response = client.delete(f"/api/notes/{note.id}/")
         assert response.status_code == status.HTTP_200_OK
-        assert not Todo.objects.filter(id=todo.id).exists()
+        assert not Note.objects.filter(id=note.id).exists()
 
-    def test_delete_other_user_todo(self, api_client, create_user, create_todo):
-        """Test that users cannot delete other users' todos."""
+    def test_delete_other_user_note(self, api_client, create_user, create_note):
+        """Test that users cannot delete other users' notes."""
         user1 = create_user(email="user1@example.com", username="user1")
         user2 = create_user(email="user2@example.com", username="user2")
-        todo = create_todo(user1)
+        note = create_note(user1)
         api_client.force_authenticate(user=user2)
-        response = api_client.delete(f"/api/todos/{todo.id}/")
+        response = api_client.delete(f"/api/notes/{note.id}/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 @pytest.mark.django_db
-class TestTodoImageStorageCleanup:
+class TestNoteImageStorageCleanup:
     """Test file cleanup on image replacement and permanent deletion."""
 
     def test_replacing_image_deletes_old_files(self, auth_client, tmp_path):
@@ -257,28 +257,28 @@ class TestTodoImageStorageCleanup:
             },
         ):
             response = client.post(
-                "/api/todos/",
-                {"title": "Todo with image", "body": "Details", "image": image1},
+                "/api/notes/",
+                {"title": "Note with image", "body": "Details", "image": image1},
                 format="multipart",
             )
             assert response.status_code == status.HTTP_201_CREATED
 
-            todo = Todo.objects.get(id=response.data["data"]["id"])
-            old_image_name = todo.image.name
-            old_thumbnail_name = todo.thumbnail.name
+            note = Note.objects.get(id=response.data["data"]["id"])
+            old_image_name = note.image.name
+            old_thumbnail_name = note.thumbnail.name
             assert (tmp_path / old_image_name).exists()
             assert (tmp_path / old_thumbnail_name).exists()
 
             response = client.put(
-                f"/api/todos/{todo.id}/",
+                f"/api/notes/{note.id}/",
                 {"title": "Replaced", "body": "New body", "image": image2},
                 format="multipart",
             )
             assert response.status_code == status.HTTP_200_OK
 
-            todo.refresh_from_db()
-            new_image_name = todo.image.name
-            new_thumbnail_name = todo.thumbnail.name
+            note.refresh_from_db()
+            new_image_name = note.image.name
+            new_thumbnail_name = note.thumbnail.name
             assert (tmp_path / new_image_name).exists()
             assert (tmp_path / new_thumbnail_name).exists()
 
@@ -303,30 +303,30 @@ class TestTodoImageStorageCleanup:
             },
         ):
             response = client.post(
-                "/api/todos/",
-                {"title": "Todo to delete", "body": "Details", "image": image},
+                "/api/notes/",
+                {"title": "Note to delete", "body": "Details", "image": image},
                 format="multipart",
             )
             assert response.status_code == status.HTTP_201_CREATED
 
-            todo = Todo.objects.get(id=response.data["data"]["id"])
-            old_image_name = todo.image.name
-            old_thumbnail_name = todo.thumbnail.name
+            note = Note.objects.get(id=response.data["data"]["id"])
+            old_image_name = note.image.name
+            old_thumbnail_name = note.thumbnail.name
             assert (tmp_path / old_image_name).exists()
             assert (tmp_path / old_thumbnail_name).exists()
 
             # First delete is a soft delete: files must remain.
-            response = client.delete(f"/api/todos/{todo.id}/")
+            response = client.delete(f"/api/notes/{note.id}/")
             assert response.status_code == status.HTTP_200_OK
-            todo.refresh_from_db()
-            assert todo.deleted is True
+            note.refresh_from_db()
+            assert note.deleted is True
             assert (tmp_path / old_image_name).exists()
             assert (tmp_path / old_thumbnail_name).exists()
 
             # Second delete is permanent: files must be removed.
-            response = client.delete(f"/api/todos/{todo.id}/")
+            response = client.delete(f"/api/notes/{note.id}/")
             assert response.status_code == status.HTTP_200_OK
-            assert not Todo.objects.filter(id=todo.id).exists()
+            assert not Note.objects.filter(id=note.id).exists()
             assert not (tmp_path / old_image_name).exists()
             assert not (tmp_path / old_thumbnail_name).exists()
 
@@ -335,11 +335,11 @@ class TestTodoImageStorageCleanup:
 class TestApiResponseFormat:
     """Test that responses follow the ApiResponse format."""
 
-    def test_response_format(self, auth_client, create_todo):
+    def test_response_format(self, auth_client, create_note):
         """Test response contains data, statusCode, and timestamp."""
         client, user = auth_client
-        create_todo(user)
-        response = client.get("/api/todos/")
+        create_note(user)
+        response = client.get("/api/notes/")
         assert "data" in response.data
         assert "statusCode" in response.data
         assert "timestamp" in response.data

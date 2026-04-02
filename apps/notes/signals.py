@@ -3,14 +3,14 @@ import logging
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
 
-from .models import Todo
+from .models import Note
 
 logger = logging.getLogger(__name__)
 
 
-@receiver(pre_delete, sender=Todo)
-def delete_todo_files(sender, instance: Todo, **kwargs):
-    """Remove Todo image objects from storage on permanent delete.
+@receiver(pre_delete, sender=Note)
+def delete_note_files(sender, instance: Note, **kwargs):
+    """Remove Note image objects from storage on permanent delete.
 
     Soft deletes only set `deleted=True` and do not trigger this signal.
     """
@@ -25,5 +25,4 @@ def delete_todo_files(sender, instance: Todo, **kwargs):
         try:
             field.storage.delete(field.name)
         except Exception:
-            logger.exception("Failed deleting %s for Todo id=%s", field_name, instance.pk)
-
+            logger.exception("Failed deleting %s for Note id=%s", field_name, instance.pk)

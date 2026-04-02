@@ -2,19 +2,19 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
-from apps.todos.models import Todo
+from apps.notes.models import Note
 
 User = get_user_model()
 
 
-class AdminTodoSerializer(serializers.ModelSerializer):
-    """Todo serializer with user info for admin views."""
+class AdminNoteSerializer(serializers.ModelSerializer):
+    """Note serializer with user info for admin views."""
 
     user_email = serializers.EmailField(source="user.email", read_only=True)
     username = serializers.CharField(source="user.username", read_only=True)
 
     class Meta:
-        model = Todo
+        model = Note
         fields = [
             "id",
             "title",

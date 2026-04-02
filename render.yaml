@@ -13,6 +13,7 @@ services:
     buildCommand: |
       pip install -r requirements/production.txt &&
       python manage.py collectstatic --noinput &&
+      python manage.py dbshell -- -c "DELETE FROM django_migrations WHERE app = 'todos';" 2>/dev/null || true &&
       python manage.py migrate --noinput
     startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3
     envVars:

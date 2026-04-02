@@ -7,8 +7,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
-from apps.todos.models import Todo
-from apps.users.admin_serializers import AdminCreateUserSerializer, AdminTodoSerializer, AdminUserUpdateSerializer
+from apps.notes.models import Note
+from apps.users.admin_serializers import AdminCreateUserSerializer, AdminNoteSerializer, AdminUserUpdateSerializer
 from apps.users.permissions import IsSuperUser
 from apps.users.serializers import UserSerializer
 
@@ -73,33 +73,33 @@ class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
         return super().destroy(request, *args, **kwargs)
 
 
-class AdminTodoListView(generics.ListAPIView):
-    """List all todos across users (superuser only)."""
+class AdminNoteListView(generics.ListAPIView):
+    """List all notes across users (superuser only)."""
 
     permission_classes = [IsSuperUser]
-    serializer_class = AdminTodoSerializer
+    serializer_class = AdminNoteSerializer
     pagination_class = AdminPagination
-    queryset = Todo.objects.select_related("user").all().order_by("-created_at")
+    queryset = Note.objects.select_related("user").all().order_by("-created_at")
     filter_backends = [filters.SearchFilter]
     search_fields = ["title", "body", "user__email"]
 
-    @extend_schema(summary="List all todos", description="Admin endpoint to list all todos.")
+    @extend_schema(summary="List all notes", description="Admin endpoint to list all notes.")
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
 
-class AdminTodoDetailView(generics.RetrieveDestroyAPIView):
-    """View and delete any todo (superuser only)."""
+class AdminNoteDetailView(generics.RetrieveDestroyAPIView):
+    """View and delete any note (superuser only)."""
 
     permission_classes = [IsSuperUser]
-    serializer_class = AdminTodoSerializer
-    queryset = Todo.objects.select_related("user").all()
+    serializer_class = AdminNoteSerializer
+    queryset = Note.objects.select_related("user").all()
 
-    @extend_schema(summary="Get todo detail", description="Admin endpoint to view a todo with user info.")
+    @extend_schema(summary="Get note detail", description="Admin endpoint to view a note with user info.")
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
 
-    @extend_schema(summary="Delete todo", description="Admin endpoint to permanently delete a todo.")
+    @extend_schema(summary="Delete note", description="Admin endpoint to permanently delete a note.")
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
 
@@ -115,16 +115,16 @@ def admin_stats(request):
         verified=Count("id", filter=Q(is_verified=True)),
         joined_today=Count("id", filter=Q(created_at__date=now.date())),
     )
-    todo_agg = Todo.objects.aggregate(
+    note_agg = Note.objects.aggregate(
         total=Count("id"),
         completed_count=Count("id", filter=Q(completed=True)),
         deleted_count=Count("id", filter=Q(deleted=True)),
         active_count=Count("id", filter=Q(completed=False, deleted=False)),
     )
-    todo_stats = {
-        "total": todo_agg["total"],
-        "completed": todo_agg["completed_count"],
-        "deleted": todo_agg["deleted_count"],
-        "active": todo_agg["active_count"],
+    note_stats = {
+        "total": note_agg["total"],
+        "completed": note_agg["completed_count"],
+        "deleted": note_agg["deleted_count"],
+        "active": note_agg["active_count"],
     }
-    return Response({"users": user_stats, "todos": todo_stats})
+    return Response({"users": user_stats, "notes": note_stats})

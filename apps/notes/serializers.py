@@ -1,16 +1,16 @@
 from rest_framework import serializers
 
-from .models import Todo
+from .models import Note
 from .utils import process_image
 
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5MB
 
 
-class TodoSerializer(serializers.ModelSerializer):
-    """Serializer for todo items."""
+class NoteSerializer(serializers.ModelSerializer):
+    """Serializer for note items."""
 
     class Meta:
-        model = Todo
+        model = Note
         fields = ["id", "title", "body", "image", "thumbnail", "completed", "deleted", "pinned", "color", "created_at", "updated_at"]
         read_only_fields = ["id", "thumbnail", "created_at", "updated_at"]
 
