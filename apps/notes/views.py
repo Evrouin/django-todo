@@ -1,3 +1,10 @@
+import ipaddress
+import logging
+import socket
+from urllib.parse import urlparse
+
+import requests as http_requests
+from bs4 import BeautifulSoup
 from django.conf import settings
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -12,6 +19,8 @@ from rest_framework.response import Response
 
 from .models import Note
 from .serializers import NoteSerializer
+
+logger = logging.getLogger(__name__)
 
 
 class NotePagination(CursorPagination):
@@ -33,6 +42,7 @@ class ApiResponseMixin:
 
 
 @method_decorator(ratelimit(key="user", rate="60/h", method="POST"), name="dispatch")
+@method_decorator(ratelimit(key="user", rate="120/h", method="GET"), name="dispatch")
 class NoteListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
     """List and create notes for the authenticated user."""
 
@@ -126,6 +136,9 @@ class NoteDetailView(ApiResponseMixin, generics.RetrieveUpdateDestroyAPIView):
         return self.api_response({"success": True})
 
 
+MAX_BULK_IDS = 50
+
+
 @extend_schema(summary="Bulk delete notes", description="Soft delete multiple notes by IDs.")
 @api_view(["POST"])
 @perm_classes([IsAuthenticated])
@@ -134,6 +147,8 @@ def bulk_delete_notes(request):
     ids = request.data.get("ids", [])
     if not ids:
         return Response({"error": "No IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
+    if len(ids) > MAX_BULK_IDS:
+        return Response({"error": f"Maximum {MAX_BULK_IDS} IDs per request."}, status=status.HTTP_400_BAD_REQUEST)
     notes = Note.objects.filter(id__in=ids, user=request.user)
     permanent_ids = list(notes.filter(deleted=True).values_list("id", flat=True))
     notes.filter(deleted=False).update(deleted=True)
@@ -150,6 +165,8 @@ def bulk_pin_notes(request):
     pinned = request.data.get("pinned", True)
     if not ids:
         return Response({"error": "No IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
+    if len(ids) > MAX_BULK_IDS:
+        return Response({"error": f"Maximum {MAX_BULK_IDS} IDs per request."}, status=status.HTTP_400_BAD_REQUEST)
     Note.objects.filter(id__in=ids, user=request.user).update(pinned=pinned)
     return Response({"success": True})
 
@@ -162,5 +179,75 @@ def bulk_restore_notes(request):
     ids = request.data.get("ids", [])
     if not ids:
         return Response({"error": "No IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
+    if len(ids) > MAX_BULK_IDS:
+        return Response({"error": f"Maximum {MAX_BULK_IDS} IDs per request."}, status=status.HTTP_400_BAD_REQUEST)
     Note.objects.filter(id__in=ids, user=request.user, deleted=True).update(deleted=False)
     return Response({"success": True})
+
+
+def _is_safe_url(url):
+    """Block requests to private/internal IPs (SSRF protection)."""
+    try:
+        hostname = urlparse(url).hostname
+        if not hostname:
+            return False
+        ip = ipaddress.ip_address(socket.gethostbyname(hostname))
+        return ip.is_global
+    except (socket.gaierror, ValueError):
+        return False
+
+
+def _fetch_og_data(url):
+    """Fetch Open Graph metadata from a URL."""
+    try:
+        resp = http_requests.get(url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
+        resp.raise_for_status()
+    except http_requests.RequestException:
+        return None
+
+    soup = BeautifulSoup(resp.text[:50_000], "html.parser")
+
+    def og(prop):
+        tag = soup.find("meta", attrs={"property": f"og:{prop}"}) or soup.find(
+            "meta", attrs={"name": prop}
+        )
+        return tag["content"].strip() if tag and tag.get("content") else None
+
+    title = og("title") or (soup.title.string.strip() if soup.title and soup.title.string else None)
+    if not title:
+        return None
+
+    return {
+        "url": url,
+        "title": title,
+        "description": og("description") or "",
+        "image": og("image") or "",
+        "domain": urlparse(url).netloc,
+    }
+
+
+@extend_schema(
+    summary="Fetch link preview",
+    description="Fetch Open Graph metadata for a URL to generate a link preview card.",
+)
+@api_view(["POST"])
+@perm_classes([IsAuthenticated])
+@ratelimit(key="user", rate="30/h", method="POST")
+def link_preview(request):
+    """Fetch OG metadata for a single URL."""
+    url = request.data.get("url", "").strip()
+    if not url:
+        return Response({"error": "URL is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return Response({"error": "Invalid URL."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not _is_safe_url(url):
+        return Response({"error": "Invalid URL."}, status=status.HTTP_400_BAD_REQUEST)
+
+    data = _fetch_og_data(url)
+    if not data:
+        return Response({"error": "Could not fetch preview."}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+
+    return Response(data)
