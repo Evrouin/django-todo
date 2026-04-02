@@ -22,6 +22,8 @@ A production-ready REST API built with Django and Django REST Framework. Feature
 - **Google OAuth** — Social login with Google
 - **Custom User Model** — Email-based auth with profile fields
 - **Note CRUD** — Create, read, update, soft delete, permanent delete, pin, bulk operations
+- **Reminders** — Set optional reminder datetimes on notes
+- **Voice Notes** — Audio file attachments with validation (10MB max, WebM/MP4/OGG/M4A)
 - **Cursor Pagination** — Efficient infinite scroll support
 - **Admin Backoffice** — Superuser-only endpoints for managing users and notes with search and pagination
 - **Rate Limiting** — Per-endpoint IP-based throttling on auth routes
