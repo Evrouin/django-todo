@@ -14,6 +14,7 @@ class Note(models.Model):
     deleted = models.BooleanField(default=False)
     pinned = models.BooleanField(default=False)
     color = models.CharField(max_length=20, default="default")
+    reminder_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -11,7 +11,7 @@ class NoteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Note
-        fields = ["id", "title", "body", "image", "thumbnail", "completed", "deleted", "pinned", "color", "created_at", "updated_at"]
+        fields = ["id", "title", "body", "image", "thumbnail", "completed", "deleted", "pinned", "color", "reminder_at", "created_at", "updated_at"]
         read_only_fields = ["id", "thumbnail", "created_at", "updated_at"]
 
     def validate_image(self, value):
