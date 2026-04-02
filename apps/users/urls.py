@@ -1,5 +1,11 @@
+from django.utils.decorators import method_decorator
 from django.urls import path
+from django_ratelimit.decorators import ratelimit
 from rest_framework_simplejwt.views import TokenRefreshView
+
+@method_decorator(ratelimit(key="ip", rate="30/h", method="POST"), name="dispatch")
+class RateLimitedTokenRefreshView(TokenRefreshView):
+    pass
 
 from .views import (
     ChangePasswordView,
@@ -12,6 +18,7 @@ from .views import (
     password_reset_confirm,
     password_reset_request,
     set_password,
+    unlock_account,
     verify_email,
 )
 
@@ -21,9 +28,10 @@ urlpatterns = [
     path("login/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("login/google/", google_login, name="google_login"),
     path("logout/", logout, name="logout"),
-    path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("token/refresh/", RateLimitedTokenRefreshView.as_view(), name="token_refresh"),
     # Email verification
     path("verify-email/<str:token>/", verify_email, name="verify_email"),
+    path("unlock-account/<str:token>/", unlock_account, name="unlock_account"),
     # Password reset
     path("password-reset/", password_reset_request, name="password_reset_request"),
     path("password-reset/confirm/", password_reset_confirm, name="password_reset_confirm"),
