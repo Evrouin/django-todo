@@ -10,6 +10,7 @@ class Note(models.Model):
     body = models.TextField(blank=True, default="")
     image = models.ImageField(upload_to="notes/", blank=True, null=True)
     thumbnail = models.ImageField(upload_to="notes/thumbs/", blank=True, null=True)
+    audio = models.FileField(upload_to="notes/audio/", blank=True, null=True)
     completed = models.BooleanField(default=False)
     deleted = models.BooleanField(default=False)
     pinned = models.BooleanField(default=False)

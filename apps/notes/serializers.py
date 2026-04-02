@@ -4,6 +4,8 @@ from .models import Note
 from .utils import process_image
 
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5MB
+MAX_AUDIO_SIZE = 10 * 1024 * 1024  # 10MB
+ALLOWED_AUDIO_TYPES = {"audio/webm", "audio/mp4", "audio/mpeg", "audio/ogg", "audio/x-m4a"}
 
 
 class NoteSerializer(serializers.ModelSerializer):
@@ -11,12 +13,20 @@ class NoteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Note
-        fields = ["id", "title", "body", "image", "thumbnail", "completed", "deleted", "pinned", "color", "reminder_at", "created_at", "updated_at"]
+        fields = ["id", "title", "body", "image", "thumbnail", "audio", "completed", "deleted", "pinned", "color", "reminder_at", "created_at", "updated_at"]
         read_only_fields = ["id", "thumbnail", "created_at", "updated_at"]
 
     def validate_image(self, value):
         if value and value.size > MAX_UPLOAD_SIZE:
             raise serializers.ValidationError("Image must be under 5MB.")
+        return value
+
+    def validate_audio(self, value):
+        if value:
+            if value.size > MAX_AUDIO_SIZE:
+                raise serializers.ValidationError("Audio must be under 10MB.")
+            if value.content_type not in ALLOWED_AUDIO_TYPES:
+                raise serializers.ValidationError("Unsupported audio format.")
         return value
 
     def create(self, validated_data):
@@ -30,6 +40,8 @@ class NoteSerializer(serializers.ModelSerializer):
         old_thumbnail_name = instance.thumbnail.name if instance.thumbnail else None
         old_image_storage = instance.image.storage if instance.image else None
         old_thumbnail_storage = instance.thumbnail.storage if instance.thumbnail else None
+        old_audio_name = instance.audio.name if instance.audio else None
+        old_audio_storage = instance.audio.storage if instance.audio else None
 
         if "image" in validated_data:
             image = validated_data.get("image")
@@ -48,5 +60,10 @@ class NoteSerializer(serializers.ModelSerializer):
                 old_image_storage.delete(old_image_name)
             if old_thumbnail_name and old_thumbnail_name != new_thumbnail_name and old_thumbnail_storage:
                 old_thumbnail_storage.delete(old_thumbnail_name)
+
+        if "audio" in validated_data:
+            new_audio_name = updated.audio.name if updated.audio else None
+            if old_audio_name and old_audio_name != new_audio_name and old_audio_storage:
+                old_audio_storage.delete(old_audio_name)
 
         return updated

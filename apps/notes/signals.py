@@ -15,7 +15,7 @@ def delete_note_files(sender, instance: Note, **kwargs):
     Soft deletes only set `deleted=True` and do not trigger this signal.
     """
 
-    for field_name in ("image", "thumbnail"):
+    for field_name in ("image", "thumbnail", "audio"):
         field = getattr(instance, field_name, None)
         if not field:
             continue
