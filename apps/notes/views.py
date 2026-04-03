@@ -99,6 +99,7 @@ class NoteDetailView(ApiResponseMixin, generics.RetrieveUpdateDestroyAPIView):
 
     permission_classes = [IsAuthenticated]
     serializer_class = NoteSerializer
+    lookup_field = "uuid"
 
     def get_queryset(self):
         return Note.objects.filter(user=self.request.user)  # type: ignore[misc]
@@ -149,10 +150,10 @@ def bulk_delete_notes(request):
         return Response({"error": "No IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
     if len(ids) > MAX_BULK_IDS:
         return Response({"error": f"Maximum {MAX_BULK_IDS} IDs per request."}, status=status.HTTP_400_BAD_REQUEST)
-    notes = Note.objects.filter(id__in=ids, user=request.user)
-    permanent_ids = list(notes.filter(deleted=True).values_list("id", flat=True))
+    notes = Note.objects.filter(uuid__in=ids, user=request.user)
+    permanent_ids = list(notes.filter(deleted=True).values_list("uuid", flat=True))
     notes.filter(deleted=False).update(deleted=True)
-    Note.objects.filter(id__in=permanent_ids).delete()
+    Note.objects.filter(uuid__in=permanent_ids).delete()
     return Response({"success": True})
 
 
@@ -167,7 +168,7 @@ def bulk_pin_notes(request):
         return Response({"error": "No IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
     if len(ids) > MAX_BULK_IDS:
         return Response({"error": f"Maximum {MAX_BULK_IDS} IDs per request."}, status=status.HTTP_400_BAD_REQUEST)
-    Note.objects.filter(id__in=ids, user=request.user).update(pinned=pinned)
+    Note.objects.filter(uuid__in=ids, user=request.user).update(pinned=pinned)
     return Response({"success": True})
 
 
@@ -181,7 +182,7 @@ def bulk_restore_notes(request):
         return Response({"error": "No IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
     if len(ids) > MAX_BULK_IDS:
         return Response({"error": f"Maximum {MAX_BULK_IDS} IDs per request."}, status=status.HTTP_400_BAD_REQUEST)
-    Note.objects.filter(id__in=ids, user=request.user, deleted=True).update(deleted=False)
+    Note.objects.filter(uuid__in=ids, user=request.user, deleted=True).update(deleted=False)
     return Response({"success": True})
 
 

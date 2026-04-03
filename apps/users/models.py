@@ -1,3 +1,5 @@
+import uuid
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.db.models import Q
@@ -7,6 +9,7 @@ from django.utils.crypto import get_random_string
 class User(AbstractUser):
     """Custom user model with additional fields."""
 
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     email = models.EmailField(unique=True)
     phone = models.CharField(max_length=20, blank=True, default="")
     avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)

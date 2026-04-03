@@ -8,5 +8,5 @@ urlpatterns = [
     path("bulk-pin/", bulk_pin_notes, name="note_bulk_pin"),
     path("bulk-restore/", bulk_restore_notes, name="note_bulk_restore"),
     path("link-preview/", link_preview, name="note_link_preview"),
-    path("<int:pk>/", NoteDetailView.as_view(), name="note_detail"),
+    path("<uuid:uuid>/", NoteDetailView.as_view(), name="note_detail"),
 ]

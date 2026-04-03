@@ -511,7 +511,7 @@ def google_login(request):
             {
                 "message": "Login successful" if not created else "Account created",
                 "user": {
-                    "id": user.id,
+                    "id": str(user.uuid),
                     "email": user.email,
                     "first_name": user.first_name,
                     "last_name": user.last_name,

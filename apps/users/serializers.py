@@ -14,7 +14,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            "id",
+            "uuid",
             "email",
             "username",
             "phone",
@@ -28,7 +28,7 @@ class UserSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "has_password", "is_active", "is_verified", "is_superuser", "created_at", "updated_at"]
+        read_only_fields = ["uuid", "has_password", "is_active", "is_verified", "is_superuser", "created_at", "updated_at"]
 
     def get_has_password(self, obj):
         return obj.has_usable_password()

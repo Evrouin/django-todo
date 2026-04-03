@@ -13,8 +13,8 @@ class NoteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Note
-        fields = ["id", "title", "body", "image", "thumbnail", "audio", "link_previews", "completed", "deleted", "pinned", "color", "reminder_at", "created_at", "updated_at"]
-        read_only_fields = ["id", "thumbnail", "created_at", "updated_at"]
+        fields = ["uuid", "title", "body", "image", "thumbnail", "audio", "link_previews", "completed", "deleted", "pinned", "color", "reminder_at", "created_at", "updated_at"]
+        read_only_fields = ["uuid", "thumbnail", "created_at", "updated_at"]
 
     def validate_image(self, value):
         if value and value.size > MAX_UPLOAD_SIZE:

@@ -51,6 +51,7 @@ class AdminUserDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     permission_classes = [IsSuperUser]
     queryset = User.objects.all()
+    lookup_field = "uuid"
 
     def get_serializer_class(self):
         if self.request.method == "PATCH":
@@ -94,6 +95,7 @@ class AdminNoteDetailView(generics.RetrieveDestroyAPIView):
     permission_classes = [IsSuperUser]
     serializer_class = AdminNoteSerializer
     queryset = Note.objects.select_related("user").all()
+    lookup_field = "uuid"
 
     @extend_schema(summary="Get note detail", description="Admin endpoint to view a note with user info.")
     def retrieve(self, request, *args, **kwargs):

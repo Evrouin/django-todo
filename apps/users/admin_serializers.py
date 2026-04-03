@@ -16,7 +16,7 @@ class AdminNoteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Note
         fields = [
-            "id",
+            "uuid",
             "title",
             "body",
             "image",
