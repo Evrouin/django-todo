@@ -74,7 +74,9 @@ class TestAuthentication:
 
     def test_login_success(self, api_client, create_user):
         """Test successful login."""
-        create_user(email="test@example.com", password="SecurePass123!")
+        user = create_user(email="test@example.com", password="SecurePass123!")
+        user.is_verified = True
+        user.save(update_fields=["is_verified"])
         response = api_client.post(
             "/api/auth/login/", {"email": "test@example.com", "password": "SecurePass123!"}
         )
@@ -84,7 +86,9 @@ class TestAuthentication:
 
     def test_login_invalid_credentials(self, api_client, create_user):
         """Test login with invalid credentials."""
-        create_user(email="test@example.com")
+        user = create_user(email="test@example.com")
+        user.is_verified = True
+        user.save(update_fields=["is_verified"])
         response = api_client.post(
             "/api/auth/login/", {"email": "test@example.com", "password": "WrongPassword123!"}
         )
@@ -92,7 +96,9 @@ class TestAuthentication:
 
     def test_token_refresh(self, api_client, create_user):
         """Test token refresh."""
-        create_user(email="test@example.com", password="SecurePass123!")
+        user = create_user(email="test@example.com", password="SecurePass123!")
+        user.is_verified = True
+        user.save(update_fields=["is_verified"])
         login_response = api_client.post(
             "/api/auth/login/", {"email": "test@example.com", "password": "SecurePass123!"}
         )

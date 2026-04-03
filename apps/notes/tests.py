@@ -149,7 +149,7 @@ class TestNoteDetail:
         """Test getting a single note."""
         client, user = auth_client
         note = create_note(user)
-        response = client.get(f"/api/notes/{note.id}/")
+        response = client.get(f"/api/notes/{note.uuid}/")
         assert response.status_code == status.HTTP_200_OK
         assert response.data["data"]["title"] == note.title
 
@@ -159,13 +159,13 @@ class TestNoteDetail:
         user2 = create_user(email="user2@example.com", username="user2")
         note = create_note(user1)
         api_client.force_authenticate(user=user2)
-        response = api_client.get(f"/api/notes/{note.id}/")
+        response = api_client.get(f"/api/notes/{note.uuid}/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_get_nonexistent_note(self, auth_client):
         """Test getting a note that doesn't exist."""
         client, _ = auth_client
-        response = client.get("/api/notes/99999/")
+        response = client.get("/api/notes/00000000-0000-0000-0000-000000000000/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
@@ -178,7 +178,7 @@ class TestNoteUpdate:
         client, user = auth_client
         note = create_note(user)
         response = client.put(
-            f"/api/notes/{note.id}/",
+            f"/api/notes/{note.uuid}/",
             {"title": "Updated", "body": "Updated body", "completed": True},
         )
         assert response.status_code == status.HTTP_200_OK
@@ -189,7 +189,7 @@ class TestNoteUpdate:
         """Test partial update (toggle completed)."""
         client, user = auth_client
         note = create_note(user)
-        response = client.patch(f"/api/notes/{note.id}/", {"completed": True})
+        response = client.patch(f"/api/notes/{note.uuid}/", {"completed": True})
         assert response.status_code == status.HTTP_200_OK
         assert response.data["data"]["completed"] is True
         assert response.data["data"]["title"] == note.title
@@ -200,7 +200,7 @@ class TestNoteUpdate:
         user2 = create_user(email="user2@example.com", username="user2")
         note = create_note(user1)
         api_client.force_authenticate(user=user2)
-        response = api_client.patch(f"/api/notes/{note.id}/", {"completed": True})
+        response = api_client.patch(f"/api/notes/{note.uuid}/", {"completed": True})
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
@@ -212,7 +212,7 @@ class TestNoteDelete:
         """Test first delete soft-deletes the note."""
         client, user = auth_client
         note = create_note(user)
-        response = client.delete(f"/api/notes/{note.id}/")
+        response = client.delete(f"/api/notes/{note.uuid}/")
         assert response.status_code == status.HTTP_200_OK
         note.refresh_from_db()
         assert note.deleted is True
@@ -221,9 +221,9 @@ class TestNoteDelete:
         """Test second delete permanently removes the note."""
         client, user = auth_client
         note = create_note(user, deleted=True)
-        response = client.delete(f"/api/notes/{note.id}/")
+        response = client.delete(f"/api/notes/{note.uuid}/")
         assert response.status_code == status.HTTP_200_OK
-        assert not Note.objects.filter(id=note.id).exists()
+        assert not Note.objects.filter(uuid=note.uuid).exists()
 
     def test_delete_other_user_note(self, api_client, create_user, create_note):
         """Test that users cannot delete other users' notes."""
@@ -231,7 +231,7 @@ class TestNoteDelete:
         user2 = create_user(email="user2@example.com", username="user2")
         note = create_note(user1)
         api_client.force_authenticate(user=user2)
-        response = api_client.delete(f"/api/notes/{note.id}/")
+        response = api_client.delete(f"/api/notes/{note.uuid}/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
@@ -263,14 +263,14 @@ class TestNoteImageStorageCleanup:
             )
             assert response.status_code == status.HTTP_201_CREATED
 
-            note = Note.objects.get(id=response.data["data"]["id"])
+            note = Note.objects.get(uuid=response.data["data"]["uuid"])
             old_image_name = note.image.name
             old_thumbnail_name = note.thumbnail.name
             assert (tmp_path / old_image_name).exists()
             assert (tmp_path / old_thumbnail_name).exists()
 
             response = client.put(
-                f"/api/notes/{note.id}/",
+                f"/api/notes/{note.uuid}/",
                 {"title": "Replaced", "body": "New body", "image": image2},
                 format="multipart",
             )
@@ -309,14 +309,14 @@ class TestNoteImageStorageCleanup:
             )
             assert response.status_code == status.HTTP_201_CREATED
 
-            note = Note.objects.get(id=response.data["data"]["id"])
+            note = Note.objects.get(uuid=response.data["data"]["uuid"])
             old_image_name = note.image.name
             old_thumbnail_name = note.thumbnail.name
             assert (tmp_path / old_image_name).exists()
             assert (tmp_path / old_thumbnail_name).exists()
 
             # First delete is a soft delete: files must remain.
-            response = client.delete(f"/api/notes/{note.id}/")
+            response = client.delete(f"/api/notes/{note.uuid}/")
             assert response.status_code == status.HTTP_200_OK
             note.refresh_from_db()
             assert note.deleted is True
@@ -324,9 +324,9 @@ class TestNoteImageStorageCleanup:
             assert (tmp_path / old_thumbnail_name).exists()
 
             # Second delete is permanent: files must be removed.
-            response = client.delete(f"/api/notes/{note.id}/")
+            response = client.delete(f"/api/notes/{note.uuid}/")
             assert response.status_code == status.HTTP_200_OK
-            assert not Note.objects.filter(id=note.id).exists()
+            assert not Note.objects.filter(uuid=note.uuid).exists()
             assert not (tmp_path / old_image_name).exists()
             assert not (tmp_path / old_thumbnail_name).exists()
 
