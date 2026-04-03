@@ -2,9 +2,9 @@
 
 A production-ready REST API built with Django and Django REST Framework. Features JWT authentication, Google OAuth, email verification, note management with soft delete, an admin backoffice, and cursor-based pagination — deployed on Render with a Nuxt.js frontend on Vercel.
 
-**Live API:** https://minimalist-todo-api-luzd.onrender.com  
-**Swagger UI:** https://minimalist-todo-api-luzd.onrender.com/api/docs/  
-**ReDoc:** https://minimalist-todo-api-luzd.onrender.com/api/redoc/
+**Live API:** https://api.minimal-list.evrouin.com  
+**Swagger UI:** https://api.minimal-list.evrouin.com/api/docs/  
+**ReDoc:** https://api.minimal-list.evrouin.com/api/redoc/
 
 ## Tech Stack
 
@@ -24,12 +24,15 @@ A production-ready REST API built with Django and Django REST Framework. Feature
 - **Note CRUD** — Create, read, update, soft delete, permanent delete, pin, bulk operations
 - **Reminders** — Set optional reminder datetimes on notes
 - **Voice Notes** — Audio file attachments with validation (10MB max, WebM/MP4/OGG/M4A)
+- **Link Previews** — Open Graph metadata fetching with SSRF protection
 - **Cursor Pagination** — Efficient infinite scroll support
 - **Admin Backoffice** — Superuser-only endpoints for managing users and notes with search and pagination
-- **Rate Limiting** — Per-endpoint IP-based throttling on auth routes
+- **Rate Limiting** — Per-endpoint IP and user-based throttling
+- **Account Lockout** — Auto-lock after 5 failed login attempts with email unlock
 - **Soft Delete** — Two-stage delete (soft → permanent) with restore capability
+- **HTML Emails** — Branded transactional emails for verification, lockout, and password reset
 - **Modular Settings** — Separate base, development, and production configurations
-- **Security Hardened** — HTTPS enforcement, secure cookies, CORS whitelisting in production
+- **Security Hardened** — HTTPS enforcement, secure cookies, CORS whitelisting, SSRF protection
 - **Code Quality** — Black, Ruff, Flake8, MyPy
 - **Unit Tests** — 33 tests covering auth and note endpoints
 
@@ -41,8 +44,11 @@ A production-ready REST API built with Django and Django REST Framework. Feature
 | POST | `/api/auth/register/` | Register new user |
 | POST | `/api/auth/login/` | Login (returns JWT tokens) |
 | POST | `/api/auth/login/google/` | Google OAuth login |
+| POST | `/api/auth/logout/` | Logout (blacklist refresh token) |
 | POST | `/api/auth/token/refresh/` | Refresh access token |
 | POST | `/api/auth/verify-email/<token>/` | Verify email address |
+| POST | `/api/auth/resend-verification/` | Resend verification email |
+| POST | `/api/auth/unlock-account/<token>/` | Unlock locked account |
 | POST | `/api/auth/password-reset/` | Request password reset |
 | POST | `/api/auth/password-reset/confirm/` | Confirm password reset |
 
@@ -52,6 +58,7 @@ A production-ready REST API built with Django and Django REST Framework. Feature
 | GET | `/api/auth/profile/` | Get profile |
 | PATCH | `/api/auth/profile/` | Update profile |
 | PUT | `/api/auth/change-password/` | Change password |
+| POST | `/api/auth/set-password/` | Set password (OAuth users) |
 | DELETE | `/api/auth/delete-account/` | Delete account |
 
 ### Notes
@@ -62,8 +69,10 @@ A production-ready REST API built with Django and Django REST Framework. Feature
 | GET | `/api/notes/:id/` | Get note |
 | PUT/PATCH | `/api/notes/:id/` | Update note |
 | DELETE | `/api/notes/:id/` | Soft delete / permanent delete |
-| POST | `/api/notes/bulk-delete/` | Bulk delete |
-| POST | `/api/notes/bulk-pin/` | Bulk pin/unpin |
+| POST | `/api/notes/bulk-delete/` | Bulk delete (max 50) |
+| POST | `/api/notes/bulk-pin/` | Bulk pin/unpin (max 50) |
+| POST | `/api/notes/bulk-restore/` | Bulk restore (max 50) |
+| POST | `/api/notes/link-preview/` | Fetch link preview metadata |
 
 ### Admin Backoffice (Superuser)
 | Method | Endpoint | Description |
@@ -78,10 +87,12 @@ A production-ready REST API built with Django and Django REST Framework. Feature
 
 ```
 ├── apps/
-│   ├── users/           # Auth, profile, admin backoffice
-│   └── notes/           # Note CRUD, pagination, bulk ops
+│   ├── users/           # Auth, profile, email, admin backoffice
+│   └── notes/           # Note CRUD, pagination, bulk ops, link preview
 ├── config/
 │   └── settings/        # base / development / production
+├── templates/
+│   └── emails/          # HTML + plain text email templates
 ├── requirements/        # base / development / production
 ├── scripts/             # entrypoint, formatting, linting
 ├── render.yaml          # Render Blueprint (one-click deploy)
