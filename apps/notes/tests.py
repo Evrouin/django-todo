@@ -444,6 +444,132 @@ class TestNoteDelete:
 
 
 @pytest.mark.django_db
+class TestBulkDelete:
+    """Test bulk delete endpoint."""
+
+    def test_bulk_soft_delete(self, auth_client, create_note):
+        """Test bulk soft-delete of active notes."""
+        client, user = auth_client
+        n1 = create_note(user, title="A")
+        n2 = create_note(user, title="B")
+        n3 = create_note(user, title="C")
+        response = client.post(
+            "/api/notes/bulk-delete/",
+            {"ids": [str(n1.uuid), str(n2.uuid)]},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK
+        n1.refresh_from_db()
+        n2.refresh_from_db()
+        n3.refresh_from_db()
+        assert n1.deleted is True
+        assert n2.deleted is True
+        assert n3.deleted is False
+
+    def test_bulk_permanent_delete(self, auth_client, create_note):
+        """Test bulk permanent delete of already soft-deleted notes."""
+        client, user = auth_client
+        n1 = create_note(user, title="A", deleted=True)
+        n2 = create_note(user, title="B", deleted=True)
+        response = client.post(
+            "/api/notes/bulk-delete/",
+            {"ids": [str(n1.uuid), str(n2.uuid)]},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert not Note.objects.filter(uuid__in=[n1.uuid, n2.uuid]).exists()
+
+    def test_bulk_delete_empty_ids(self, auth_client):
+        """Test bulk delete with no IDs returns 400."""
+        client, _ = auth_client
+        response = client.post("/api/notes/bulk-delete/", {"ids": []}, format="json")
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.django_db
+class TestBulkPin:
+    """Test bulk pin/unpin endpoint."""
+
+    def test_bulk_pin(self, auth_client, create_note):
+        """Test bulk pin notes."""
+        client, user = auth_client
+        n1 = create_note(user, title="A")
+        n2 = create_note(user, title="B")
+        response = client.post(
+            "/api/notes/bulk-pin/",
+            {"ids": [str(n1.uuid), str(n2.uuid)], "pinned": True},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK
+        n1.refresh_from_db()
+        n2.refresh_from_db()
+        assert n1.pinned is True
+        assert n2.pinned is True
+
+    def test_bulk_unpin(self, auth_client, create_note):
+        """Test bulk unpin notes."""
+        client, user = auth_client
+        n1 = create_note(user, title="A")
+        n1.pinned = True
+        n1.save()
+        response = client.post(
+            "/api/notes/bulk-pin/",
+            {"ids": [str(n1.uuid)], "pinned": False},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK
+        n1.refresh_from_db()
+        assert n1.pinned is False
+
+
+@pytest.mark.django_db
+class TestBulkRestore:
+    """Test bulk restore endpoint."""
+
+    def test_bulk_restore(self, auth_client, create_note):
+        """Test restoring soft-deleted notes assigns new order_ids."""
+        client, user = auth_client
+        n1 = create_note(user, title="Active", order_id=3)
+        n2 = create_note(user, title="Deleted1", deleted=True, order_id=1)
+        n3 = create_note(user, title="Deleted2", deleted=True, order_id=2)
+        response = client.post(
+            "/api/notes/bulk-restore/",
+            {"ids": [str(n2.uuid), str(n3.uuid)]},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK
+        n2.refresh_from_db()
+        n3.refresh_from_db()
+        assert n2.deleted is False
+        assert n3.deleted is False
+        # Restored notes should have order_ids above the existing max (3)
+        assert n2.order_id > n1.order_id
+        assert n3.order_id > n1.order_id
+
+    def test_bulk_restore_no_duplicate_order_ids(self, auth_client, create_note):
+        """Test restore doesn't create duplicate order_ids."""
+        client, user = auth_client
+        for i in range(5):
+            create_note(user, title=f"Active{i}")
+        deleted = [create_note(user, title=f"Del{i}", deleted=True) for i in range(3)]
+        response = client.post(
+            "/api/notes/bulk-restore/",
+            {"ids": [str(n.uuid) for n in deleted]},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK
+        from django.db.models import Count
+        dupes = Note.objects.filter(user=user, deleted=False).values("order_id").annotate(c=Count("id")).filter(c__gt=1)
+        assert not dupes.exists()
+
+    def test_bulk_restore_empty_ids(self, auth_client):
+        """Test bulk restore with no IDs returns 400."""
+        client, _ = auth_client
+        response = client.post("/api/notes/bulk-restore/", {"ids": []}, format="json")
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.django_db
 class TestNoteImageStorageCleanup:
     """Test file cleanup on image replacement and permanent deletion."""
 
