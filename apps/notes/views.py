@@ -146,7 +146,7 @@ MAX_BULK_IDS = 50
 @api_view(["POST"])
 @perm_classes([IsAuthenticated])
 def bulk_delete_notes(request):
-    """Bulk delete notes. Soft-deletes active notes, permanently deletes already soft-deleted ones."""
+    """Soft-delete active notes, permanently delete already soft-deleted ones."""
     ids = request.data.get("ids", [])
     if not ids:
         return Response({"error": "No IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
@@ -159,13 +159,14 @@ def bulk_delete_notes(request):
     return Response({"success": True})
 
 
-@extend_schema(summary="Reorder a single note", description="Move a note to a new position. Adjacent notes are automatically shifted.")
+@extend_schema(summary="Reorder a note within its section", description="Move a note to a new position within the pinned or unpinned section.")
 @api_view(["POST"])
 @perm_classes([IsAuthenticated])
 def bulk_reorder_notes(request):
-    """Move a single note to a new position. Rebuilds sequential order_ids to prevent duplicates."""
+    """Move a note to a new position within its pinned/unpinned section."""
     uuid = request.data.get("uuid")
     new_position = request.data.get("new_position")
+    pinned = request.data.get("pinned")
 
     if not uuid:
         return Response({"error": "uuid is required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -173,30 +174,39 @@ def bulk_reorder_notes(request):
         return Response({"error": "new_position is required."}, status=status.HTTP_400_BAD_REQUEST)
     if not isinstance(new_position, int) or new_position < 1:
         return Response({"error": "new_position must be a positive integer."}, status=status.HTTP_400_BAD_REQUEST)
+    if pinned is None or not isinstance(pinned, bool):
+        return Response({"error": "pinned (boolean) is required."}, status=status.HTTP_400_BAD_REQUEST)
 
     with transaction.atomic():
-        notes = list(
+        all_notes = list(
             Note.objects.select_for_update()
             .filter(user=request.user, deleted=False)
-            .order_by("-pinned", "-order_id")
+            .order_by("-order_id")
         )
 
+        pinned_notes = [n for n in all_notes if n.pinned]
+        unpinned_notes = [n for n in all_notes if not n.pinned]
+
+        section = pinned_notes if pinned else unpinned_notes
+
         target = None
-        for n in notes:
+        for n in section:
             if str(n.uuid) == uuid:
                 target = n
                 break
 
         if target is None:
-            return Response({"error": "Note not found or is deleted."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "Note not found in the specified section."}, status=status.HTTP_404_NOT_FOUND)
 
-        notes.remove(target)
-        insert_idx = max(0, min(new_position - 1, len(notes)))
-        notes.insert(insert_idx, target)
+        section.remove(target)
+        insert_idx = max(0, min(new_position - 1, len(section)))
+        section.insert(insert_idx, target)
 
-        total = len(notes)
+        # Rebuild: pinned get highest order_ids, unpinned get the rest
+        combined = pinned_notes + unpinned_notes
+        total = len(combined)
         to_update = []
-        for i, n in enumerate(notes):
+        for i, n in enumerate(combined):
             new_oid = total - i
             if n.order_id != new_oid:
                 n.order_id = new_oid
@@ -227,7 +237,7 @@ def bulk_pin_notes(request):
 @api_view(["POST"])
 @perm_classes([IsAuthenticated])
 def bulk_restore_notes(request):
-    """Bulk restore soft-deleted notes, assigning new order_ids to avoid duplicates."""
+    """Restore soft-deleted notes, assigning new order_ids to avoid duplicates."""
     ids = request.data.get("ids", [])
     if not ids:
         return Response({"error": "No IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
