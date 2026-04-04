@@ -6,6 +6,8 @@ from urllib.parse import urlparse
 import requests as http_requests
 from bs4 import BeautifulSoup
 from django.conf import settings
+from django.db import transaction
+from django.db.models import Max
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
@@ -27,7 +29,7 @@ class NotePagination(CursorPagination):
     """Cursor pagination for notes."""
 
     page_size = 20
-    ordering = "-created_at"
+    ordering = "-order_id"
     cursor_query_param = "cursor"
 
 
@@ -157,6 +159,55 @@ def bulk_delete_notes(request):
     return Response({"success": True})
 
 
+@extend_schema(summary="Reorder a single note", description="Move a note to a new position. Adjacent notes are automatically shifted.")
+@api_view(["POST"])
+@perm_classes([IsAuthenticated])
+def bulk_reorder_notes(request):
+    """Move a single note to a new position. Rebuilds sequential order_ids to prevent duplicates."""
+    uuid = request.data.get("uuid")
+    new_position = request.data.get("new_position")
+
+    if not uuid:
+        return Response({"error": "uuid is required."}, status=status.HTTP_400_BAD_REQUEST)
+    if new_position is None:
+        return Response({"error": "new_position is required."}, status=status.HTTP_400_BAD_REQUEST)
+    if not isinstance(new_position, int) or new_position < 1:
+        return Response({"error": "new_position must be a positive integer."}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        notes = list(
+            Note.objects.select_for_update()
+            .filter(user=request.user, deleted=False)
+            .order_by("-pinned", "-order_id")
+        )
+
+        target = None
+        for n in notes:
+            if str(n.uuid) == uuid:
+                target = n
+                break
+
+        if target is None:
+            return Response({"error": "Note not found or is deleted."}, status=status.HTTP_404_NOT_FOUND)
+
+        notes.remove(target)
+        insert_idx = max(0, min(new_position - 1, len(notes)))
+        notes.insert(insert_idx, target)
+
+        total = len(notes)
+        to_update = []
+        for i, n in enumerate(notes):
+            new_oid = total - i
+            if n.order_id != new_oid:
+                n.order_id = new_oid
+                to_update.append(n)
+
+        if to_update:
+            Note.objects.bulk_update(to_update, ["order_id"])
+
+    return Response({"success": True})
+
+
 @extend_schema(summary="Bulk pin/unpin notes", description="Pin or unpin multiple notes by IDs.")
 @api_view(["POST"])
 @perm_classes([IsAuthenticated])
@@ -176,13 +227,27 @@ def bulk_pin_notes(request):
 @api_view(["POST"])
 @perm_classes([IsAuthenticated])
 def bulk_restore_notes(request):
-    """Bulk restore soft-deleted notes."""
+    """Bulk restore soft-deleted notes, assigning new order_ids to avoid duplicates."""
     ids = request.data.get("ids", [])
     if not ids:
         return Response({"error": "No IDs provided."}, status=status.HTTP_400_BAD_REQUEST)
     if len(ids) > MAX_BULK_IDS:
         return Response({"error": f"Maximum {MAX_BULK_IDS} IDs per request."}, status=status.HTTP_400_BAD_REQUEST)
-    Note.objects.filter(uuid__in=ids, user=request.user, deleted=True).update(deleted=False)
+
+    with transaction.atomic():
+        max_order = (
+            Note.objects.filter(user=request.user, deleted=False).aggregate(m=Max("order_id"))["m"] or 0
+        )
+        notes = list(
+            Note.objects.select_for_update()
+            .filter(uuid__in=ids, user=request.user, deleted=True)
+            .order_by("order_id", "created_at")
+        )
+        for i, note in enumerate(notes, start=1):
+            note.deleted = False
+            note.order_id = max_order + i
+        Note.objects.bulk_update(notes, ["deleted", "order_id"])
+
     return Response({"success": True})
 
 

@@ -54,14 +54,21 @@ def auth_client(api_client, create_user):
 @pytest.fixture
 def create_note(db):
     """Create a test note."""
+    from django.db.models import Max
 
     def make_note(user, **kwargs):
+        order_id = kwargs.get("order_id")
+        if order_id is None:
+            max_order = Note.objects.filter(user=user, deleted=False).aggregate(max_order=Max("order_id"))["max_order"]
+            order_id = (max_order or 0) + 1
+
         return Note.objects.create(
             user=user,
             title=kwargs.get("title", "Test note"),
             body=kwargs.get("body", "Test body"),
             completed=kwargs.get("completed", False),
             deleted=kwargs.get("deleted", False),
+            order_id=order_id,
         )
 
     return make_note
@@ -113,6 +120,54 @@ class TestNoteList:
         response = api_client.get("/api/notes/")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
+    def test_bulk_reorder_notes_move_down(self, auth_client, create_note):
+        """Test reorder moves a note down and shifts adjacent notes up."""
+        client, user = auth_client
+        note1 = create_note(user, title="First note")  # order_id = 1
+        note2 = create_note(user, title="Second note")  # order_id = 2
+        note3 = create_note(user, title="Third note")  # order_id = 3
+        note4 = create_note(user, title="Fourth note")  # order_id = 4
+
+        # Move note1 (position 1) to position 3
+        response = client.post(
+            "/api/notes/bulk-reorder/",
+            {"uuid": str(note1.uuid), "new_position": 3},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        # note1 should be at position 3
+        assert Note.objects.get(uuid=note1.uuid).order_id == 3
+        # note2 and note3 should shift up (2 -> 1, 3 -> 2)
+        assert Note.objects.get(uuid=note2.uuid).order_id == 1
+        assert Note.objects.get(uuid=note3.uuid).order_id == 2
+        # note4 should stay at position 4
+        assert Note.objects.get(uuid=note4.uuid).order_id == 4
+
+    def test_bulk_reorder_notes_move_up(self, auth_client, create_note):
+        """Test reorder moves a note up and shifts adjacent notes down."""
+        client, user = auth_client
+        note1 = create_note(user, title="First note")  # order_id = 1
+        note2 = create_note(user, title="Second note")  # order_id = 2
+        note3 = create_note(user, title="Third note")  # order_id = 3
+        note4 = create_note(user, title="Fourth note")  # order_id = 4
+
+        # Move note3 (position 3) to position 1
+        response = client.post(
+            "/api/notes/bulk-reorder/",
+            {"uuid": str(note3.uuid), "new_position": 1},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        # note3 should be at position 1
+        assert Note.objects.get(uuid=note3.uuid).order_id == 1
+        # note1 and note2 should shift down (1 -> 2, 2 -> 3)
+        assert Note.objects.get(uuid=note1.uuid).order_id == 2
+        assert Note.objects.get(uuid=note2.uuid).order_id == 3
+        # note4 should stay at position 4
+        assert Note.objects.get(uuid=note4.uuid).order_id == 4
+
 
 @pytest.mark.django_db
 class TestNoteCreate:
@@ -139,6 +194,15 @@ class TestNoteCreate:
         client, _ = auth_client
         response = client.post("/api/notes/", {"body": "No title"})
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_create_note_assigns_order_id(self, auth_client, create_note):
+        """Test creating a note assigns a new order_id for the user."""
+        client, user = auth_client
+        create_note(user, title="First note")
+        response = client.post("/api/notes/", {"title": "Second note"})
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.data["data"]["order_id"] == 2
+        assert Note.objects.get(title="Second note").order_id == 2
 
 
 @pytest.mark.django_db

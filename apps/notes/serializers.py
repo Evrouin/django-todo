@@ -1,3 +1,4 @@
+from django.db.models import Max
 from rest_framework import serializers
 
 from .models import Note
@@ -13,8 +14,13 @@ class NoteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Note
-        fields = ["uuid", "title", "body", "image", "thumbnail", "audio", "link_previews", "completed", "deleted", "pinned", "color", "reminder_at", "created_at", "updated_at"]
+        fields = ["uuid", "title", "body", "image", "thumbnail", "audio", "link_previews", "completed", "deleted", "pinned", "order_id", "color", "reminder_at", "created_at", "updated_at"]
         read_only_fields = ["uuid", "thumbnail", "created_at", "updated_at"]
+
+    def validate_order_id(self, value):
+        if value is None or not isinstance(value, int) or value < 0:
+            raise serializers.ValidationError("order_id must be a non-negative integer.")
+        return value
 
     def validate_image(self, value):
         if value and value.size > MAX_UPLOAD_SIZE:
@@ -52,6 +58,14 @@ class NoteSerializer(serializers.ModelSerializer):
         image = validated_data.get("image")
         if image:
             validated_data["image"], validated_data["thumbnail"] = process_image(image)
+
+        if "order_id" not in validated_data:
+            request = self.context.get("request")
+            user = getattr(request, "user", None)
+            if user and user.is_authenticated:
+                max_order = Note.objects.filter(user=user, deleted=False).aggregate(max_order=Max("order_id"))["max_order"] or 0
+                validated_data["order_id"] = max_order + 1
+
         return super().create(validated_data)
 
     def update(self, instance, validated_data):

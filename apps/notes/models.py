@@ -18,6 +18,7 @@ class Note(models.Model):
     completed = models.BooleanField(default=False)
     deleted = models.BooleanField(default=False)
     pinned = models.BooleanField(default=False)
+    order_id = models.BigIntegerField(default=0)
     color = models.CharField(max_length=20, default="default")
     reminder_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -25,10 +26,10 @@ class Note(models.Model):
 
     class Meta:
         db_table = "notes"
-        ordering = ["-pinned", "-created_at"]
+        ordering = ["-pinned", "-order_id", "-created_at"]
         indexes = [
             models.Index(fields=["user", "deleted"]),
-            models.Index(fields=["user", "-pinned", "-created_at"]),
+            models.Index(fields=["user", "-pinned", "-order_id"]),
         ]
 
     def __str__(self):
