@@ -159,6 +159,17 @@ def bulk_delete_notes(request):
     return Response({"success": True})
 
 
+@extend_schema(summary="Clear all notes", description="Permanently delete all notes for the authenticated user. Requires confirmation.")
+@api_view(["POST"])
+@perm_classes([IsAuthenticated])
+def clear_all_notes(request):
+    """Permanently delete all notes for the user. Requires confirm=true."""
+    if request.data.get("confirm") is not True:
+        return Response({"error": "Confirmation required. Send confirm: true."}, status=status.HTTP_400_BAD_REQUEST)
+    count, _ = Note.objects.filter(user=request.user).delete()
+    return Response({"success": True, "deleted": count})
+
+
 @extend_schema(summary="Reorder a note within its section", description="Move a note to a new position within the pinned or unpinned section.")
 @api_view(["POST"])
 @perm_classes([IsAuthenticated])
