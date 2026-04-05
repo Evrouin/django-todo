@@ -5,6 +5,7 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.db.models import Q
 from django.utils.crypto import get_random_string
+from django.utils import timezone
 
 
 class User(AbstractUser):
@@ -90,6 +91,7 @@ class UserSession(models.Model):
     os = models.CharField(max_length=100, default="")
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.TextField(default="")
+    device_fingerprint = models.CharField(max_length=255, default="", db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     last_active_at = models.DateTimeField(auto_now=True)
 
@@ -119,7 +121,29 @@ class UserSession(models.Model):
         device_name = f"{browser} on {os}" if browser and os else ua_string[:100] or "Unknown device"
         ip = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip() or request.META.get("REMOTE_ADDR")
 
-        return cls.objects.create(
-            user=user, jti=jti, device_name=device_name, device_type=device_type,
-            browser=browser, os=os, ip_address=ip, user_agent=ua_string,
-        )
+        device_fingerprint = f"{ip}:{browser}:{os}:{device_type}"
+
+        existing_session = cls.objects.filter(
+            user=user,
+            device_fingerprint=device_fingerprint
+        ).first()
+
+        if existing_session:
+            from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
+            try:
+                old_token = OutstandingToken.objects.get(jti=existing_session.jti)
+                from rest_framework_simplejwt.tokens import RefreshToken
+                RefreshToken(old_token.token).blacklist()
+            except Exception:
+                pass
+
+            existing_session.jti = jti
+            existing_session.last_active_at = timezone.now()
+            existing_session.save()
+            return existing_session
+        else:
+            return cls.objects.create(
+                user=user, jti=jti, device_name=device_name, device_type=device_type,
+                browser=browser, os=os, ip_address=ip, user_agent=ua_string,
+                device_fingerprint=device_fingerprint,
+            )
