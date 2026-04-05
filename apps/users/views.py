@@ -22,7 +22,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .models import PasswordResetToken
+from .models import PasswordResetToken, UserSession
 from .serializers import (
     ChangePasswordSerializer,
     PasswordResetConfirmSerializer,
@@ -135,6 +135,11 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         user.failed_login_attempts = 0
         user.locked_until = None
         user.save()
+
+        # Create session record
+        refresh_token = RefreshToken(response.data["refresh"])
+        UserSession.create_from_request(user, refresh_token["jti"], request)
+
         return response
 
 
@@ -399,7 +404,9 @@ def logout(request):
     if not refresh_token:
         return Response({"error": "Refresh token is required."}, status=status.HTTP_400_BAD_REQUEST)
     try:
-        RefreshToken(refresh_token).blacklist()
+        token = RefreshToken(refresh_token)
+        UserSession.objects.filter(jti=token["jti"]).delete()
+        token.blacklist()
         return Response({"message": "Logged out successfully."}, status=status.HTTP_200_OK)
     except Exception:
         return Response({"error": "Invalid token."}, status=status.HTTP_400_BAD_REQUEST)
@@ -506,6 +513,7 @@ def google_login(request):
 
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
+        UserSession.create_from_request(user, refresh["jti"], request)
 
         return Response(
             {
@@ -528,3 +536,73 @@ def google_login(request):
 
     except ValueError as e:
         return Response({"error": f"Invalid token: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@extend_schema(summary="List active sessions", description="Get all active sessions for the current user.")
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def list_sessions(request):
+    sessions = UserSession.objects.filter(user=request.user)
+    current_jti = None
+    refresh = request.query_params.get("refresh")
+    if refresh:
+        try:
+            current_jti = RefreshToken(refresh)["jti"]
+        except Exception:
+            pass
+
+    data = []
+    for s in sessions:
+        data.append({
+            "id": s.id,
+            "device_name": s.device_name,
+            "device_type": s.device_type,
+            "browser": s.browser,
+            "os": s.os,
+            "ip_address": s.ip_address,
+            "created_at": s.created_at.isoformat(),
+            "last_active_at": s.last_active_at.isoformat(),
+            "is_current": s.jti == current_jti,
+        })
+    return Response({"data": data})
+
+
+@extend_schema(summary="Revoke a session", description="Revoke a specific session by ID.")
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def revoke_session(request, session_id):
+    try:
+        session = UserSession.objects.get(id=session_id, user=request.user)
+    except UserSession.DoesNotExist:
+        return Response({"error": "Session not found."}, status=status.HTTP_404_NOT_FOUND)
+    # Blacklist the refresh token
+    try:
+        ot = OutstandingToken.objects.get(jti=session.jti)
+        RefreshToken(ot.token).blacklist()
+    except Exception:
+        pass
+    session.delete()
+    return Response({"message": "Session revoked."})
+
+
+@extend_schema(summary="Revoke all other sessions", description="Revoke all sessions except the current one.")
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def revoke_other_sessions(request):
+    refresh_token = request.data.get("refresh")
+    if not refresh_token:
+        return Response({"error": "Refresh token is required."}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        current_jti = RefreshToken(refresh_token)["jti"]
+    except Exception:
+        return Response({"error": "Invalid token."}, status=status.HTTP_400_BAD_REQUEST)
+    other_sessions = UserSession.objects.filter(user=request.user).exclude(jti=current_jti)
+    for session in other_sessions:
+        try:
+            ot = OutstandingToken.objects.get(jti=session.jti)
+            RefreshToken(ot.token).blacklist()
+        except Exception:
+            pass
+    count = other_sessions.count()
+    other_sessions.delete()
+    return Response({"message": f"{count} session(s) revoked."})

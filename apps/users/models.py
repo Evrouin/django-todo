@@ -1,5 +1,6 @@
 import uuid
 
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.db.models import Q
@@ -74,3 +75,51 @@ class PasswordResetToken(models.Model):
         from django.utils import timezone
 
         return not self.is_used and (timezone.now() - self.created_at) < timedelta(hours=24)
+
+
+class UserSession(models.Model):
+    """Tracks active user sessions linked to JWT refresh tokens."""
+
+    DEVICE_TYPES = [("desktop", "Desktop"), ("mobile", "Mobile"), ("tablet", "Tablet"), ("unknown", "Unknown")]
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sessions")
+    jti = models.CharField(max_length=255, unique=True)
+    device_name = models.CharField(max_length=255, default="Unknown device")
+    device_type = models.CharField(max_length=20, choices=DEVICE_TYPES, default="unknown")
+    browser = models.CharField(max_length=100, default="")
+    os = models.CharField(max_length=100, default="")
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_active_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "user_sessions"
+        ordering = ["-last_active_at"]
+
+    def __str__(self):
+        return f"{self.user.email} - {self.device_name}"
+
+    @classmethod
+    def create_from_request(cls, user, jti, request):
+        from user_agents import parse
+
+        ua_string = request.META.get("HTTP_USER_AGENT", "")
+        ua = parse(ua_string)
+        browser = f"{ua.browser.family} {ua.browser.version_string}".strip()
+        os = f"{ua.os.family} {ua.os.version_string}".strip()
+        if ua.is_mobile:
+            device_type = "mobile"
+        elif ua.is_tablet:
+            device_type = "tablet"
+        elif ua.is_pc:
+            device_type = "desktop"
+        else:
+            device_type = "unknown"
+        device_name = f"{browser} on {os}" if browser and os else ua_string[:100] or "Unknown device"
+        ip = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip() or request.META.get("REMOTE_ADDR")
+
+        return cls.objects.create(
+            user=user, jti=jti, device_name=device_name, device_type=device_type,
+            browser=browser, os=os, ip_address=ip, user_agent=ua_string,
+        )

@@ -64,13 +64,18 @@ class NoteSerializer(serializers.ModelSerializer):
             user = getattr(request, "user", None)
             if user and user.is_authenticated:
                 from django.db.models import F, Min
-                pinned_min = Note.objects.filter(user=user, deleted=False, pinned=True).aggregate(m=Min("order_id"))["m"]
-                if pinned_min:
-                    validated_data["order_id"] = pinned_min
-                    Note.objects.filter(user=user, deleted=False, pinned=True).update(order_id=F("order_id") + 1)
-                else:
+
+                if validated_data.get("pinned"):
                     max_order = Note.objects.filter(user=user, deleted=False).aggregate(max_order=Max("order_id"))["max_order"] or 0
                     validated_data["order_id"] = max_order + 1
+                else:
+                    pinned_min = Note.objects.filter(user=user, deleted=False, pinned=True).aggregate(m=Min("order_id"))["m"]
+                    if pinned_min:
+                        validated_data["order_id"] = pinned_min
+                        Note.objects.filter(user=user, deleted=False, pinned=True).update(order_id=F("order_id") + 1)
+                    else:
+                        max_order = Note.objects.filter(user=user, deleted=False).aggregate(max_order=Max("order_id"))["max_order"] or 0
+                        validated_data["order_id"] = max_order + 1
 
         return super().create(validated_data)
 

@@ -1,9 +1,11 @@
 from django.utils.decorators import method_decorator
 from django.urls import path
+from django.utils import timezone
 from django_ratelimit.decorators import ratelimit
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
 
@@ -11,6 +13,15 @@ from rest_framework_simplejwt.views import TokenRefreshView
 class RateLimitedTokenRefreshView(TokenRefreshView):
     def post(self, request, *args, **kwargs):
         try:
+            # Update session last_active_at
+            old_token = request.data.get("refresh")
+            if old_token:
+                try:
+                    from apps.users.models import UserSession
+                    jti = RefreshToken(old_token)["jti"]
+                    UserSession.objects.filter(jti=jti).update(last_active_at=timezone.now())
+                except Exception:
+                    pass
             return super().post(request, *args, **kwargs)
         except TokenError:
             return Response(
@@ -25,10 +36,13 @@ from .views import (
     UserProfileView,
     delete_account,
     google_login,
+    list_sessions,
     logout,
     password_reset_confirm,
     password_reset_request,
     resend_verification,
+    revoke_other_sessions,
+    revoke_session,
     set_password,
     unlock_account,
     verify_email,
@@ -53,4 +67,8 @@ urlpatterns = [
     path("change-password/", ChangePasswordView.as_view(), name="change_password"),
     path("set-password/", set_password, name="set_password"),
     path("delete-account/", delete_account, name="delete_account"),
+    # Sessions
+    path("sessions/", list_sessions, name="list_sessions"),
+    path("sessions/<int:session_id>/", revoke_session, name="revoke_session"),
+    path("sessions/revoke-others/", revoke_other_sessions, name="revoke_other_sessions"),
 ]
