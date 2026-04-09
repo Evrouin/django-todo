@@ -161,14 +161,25 @@ def bulk_delete_notes(request):
     return Response({"success": True})
 
 
-@extend_schema(summary="Clear all notes", description="Permanently delete all notes for the authenticated user. Requires confirmation.")
+@extend_schema(summary="Clear all notes", description="Permanently delete all notes for the authenticated user. Requires password confirmation.")
 @api_view(["POST"])
 @perm_classes([IsAuthenticated])
 def clear_all_notes(request):
-    """Permanently delete all notes for the user. Requires confirm=true."""
-    if request.data.get("confirm") is not True:
-        return Response({"error": "Confirmation required. Send confirm: true."}, status=status.HTTP_400_BAD_REQUEST)
+    """Permanently delete all notes for the user. Requires password confirmation."""
+    password = request.data.get("password")
+    if not password:
+        return Response({"error": "Password is required."}, status=status.HTTP_400_BAD_REQUEST)
+    if not request.user.check_password(password):
+        return Response({"error": "Incorrect password."}, status=status.HTTP_400_BAD_REQUEST)
     count, _ = Note.objects.filter(user=request.user).delete()
+    return Response({"success": True, "deleted": count})
+
+
+@extend_schema(summary="Empty trash", description="Permanently delete all soft-deleted notes for the authenticated user.")
+@api_view(["DELETE"])
+@perm_classes([IsAuthenticated])
+def empty_trash(request):
+    count, _ = Note.objects.filter(user=request.user, deleted=True).delete()
     return Response({"success": True, "deleted": count})
 
 
