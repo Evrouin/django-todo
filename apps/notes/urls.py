@@ -35,6 +35,7 @@ urlpatterns = [
     path("<uuid:uuid>/", NoteDetailView.as_view(), name="note_detail"),
     path("<uuid:uuid>/archive/", archive_note, name="note_archive"),
     path("<uuid:uuid>/unarchive/", unarchive_note, name="note_unarchive"),
+    path("<uuid:uuid>/snooze/", snooze_note, name="note_snooze"),
     # Folders
     path("folders/", FolderListCreateView.as_view(), name="folder_list_create"),
     path("folders/reorder/", reorder_folders, name="folder_reorder"),
