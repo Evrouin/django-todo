@@ -230,9 +230,18 @@ def bulk_reorder_notes(request):
         return Response({"error": "pinned (boolean) is required."}, status=status.HTTP_400_BAD_REQUEST)
 
     with transaction.atomic():
+        try:
+            target = Note.objects.select_for_update().get(uuid=uuid, user=request.user, deleted=False)
+        except Note.DoesNotExist:
+            return Response({"error": "Note not found in the specified section."}, status=status.HTTP_404_NOT_FOUND)
+
+        if target.pinned != pinned:
+            return Response({"error": "Note not found in the specified section."}, status=status.HTTP_404_NOT_FOUND)
+
+        folder_filter = {"folder": target.folder}
         all_notes = list(
             Note.objects.select_for_update()
-            .filter(user=request.user, deleted=False)
+            .filter(user=request.user, deleted=False, is_archived=False, **folder_filter)
             .order_by("-order_id")
         )
 
@@ -240,15 +249,6 @@ def bulk_reorder_notes(request):
         unpinned_notes = [n for n in all_notes if not n.pinned]
 
         section = pinned_notes if pinned else unpinned_notes
-
-        target = None
-        for n in section:
-            if str(n.uuid) == uuid:
-                target = n
-                break
-
-        if target is None:
-            return Response({"error": "Note not found in the specified section."}, status=status.HTTP_404_NOT_FOUND)
 
         section.remove(target)
         insert_idx = max(0, min(new_position - 1, len(section)))
