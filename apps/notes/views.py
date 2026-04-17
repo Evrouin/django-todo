@@ -455,7 +455,14 @@ class FolderListCreateView(ApiResponseMixin, generics.ListCreateAPIView):
     @extend_schema(summary="List folders")
     def list(self, request, *args, **kwargs):
         serializer = self.get_serializer(self.get_queryset(), many=True)
-        return self.api_response(serializer.data)
+        data = serializer.data
+        if request.query_params.get("archived") != "true":
+            data = {
+                "folders": data,
+                "trash_count": Note.objects.filter(user=request.user, deleted=True).count(),
+                "archive_count": Note.objects.filter(user=request.user, is_archived=True, deleted=False, archived_by_folder=False).count(),
+            }
+        return self.api_response(data)
 
     @extend_schema(summary="Create folder")
     def create(self, request, *args, **kwargs):
