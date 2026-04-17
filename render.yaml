@@ -1,9 +1,3 @@
-databases:
-  - name: minimalist-todo-db
-    plan: free
-    region: singapore
-    databaseName: minimalist_todo_db
-
 services:
   - type: web
     name: minimalist-todo-api
@@ -13,7 +7,6 @@ services:
     buildCommand: |
       pip install -r requirements/production.txt &&
       python manage.py collectstatic --noinput &&
-      python manage.py dbshell -- -c "DELETE FROM django_migrations WHERE app = 'todos';" 2>/dev/null || true &&
       python manage.py migrate --noinput
     startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3
     envVars:
@@ -26,9 +19,7 @@ services:
       - key: PYTHON_VERSION
         value: "3.12.0"
       - key: DATABASE_URL
-        fromDatabase:
-          name: minimalist-todo-db
-          property: connectionString
+        sync: false
       - key: ALLOWED_HOSTS
         sync: false
       - key: CORS_ALLOWED_ORIGINS
@@ -57,6 +48,4 @@ services:
           type: web
           envVarKey: SECRET_KEY
       - key: DATABASE_URL
-        fromDatabase:
-          name: minimalist-todo-db
-          property: connectionString
+        sync: false
