@@ -9,6 +9,18 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from django.http import JsonResponse
 from django.conf import settings
 
+SENSITIVE_FIELDS = {
+    "password",
+    "password2",
+    "old_password",
+    "new_password",
+    "new_password2",
+    "token",
+    "refresh",
+    "access",
+}
+
+
 def _get_aes_key():
     key = getattr(settings, "ENCRYPTION_KEY", "")
     if not key:
